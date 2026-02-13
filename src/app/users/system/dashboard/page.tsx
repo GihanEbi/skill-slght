@@ -34,7 +34,7 @@ export default function DashboardPage() {
       initial="hidden"
       animate="visible"
       variants={containerVariants}
-      className="space-y-10"
+      className="space-y-10 p-4"
     >
       {/* --- Top Header --- */}
       <motion.header
