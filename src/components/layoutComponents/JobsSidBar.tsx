@@ -28,16 +28,16 @@ export default function JobsSideBar({
 
   const navLinks = [
     {
+      icon: "rocket_launch",
+      label: "Active Jobs",
+      href: "/users/system/jobs/active_jobs",
+    },
+    {
       icon: "add_circle",
       label: "Create Job",
       href: "/users/system/jobs/create/details",
       // Custom pattern to keep this active for any route under /create/
       activePattern: "/users/system/jobs/create",
-    },
-    {
-      icon: "rocket_launch",
-      label: "Active Jobs",
-      href: "/users/system/jobs/active",
     },
     {
       icon: "archive",
