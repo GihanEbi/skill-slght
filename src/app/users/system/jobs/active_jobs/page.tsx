@@ -15,6 +15,7 @@ const itemVariants = {
 };
 
 export default function ActiveJobsPage() {
+  const router = useRouter();
   const [activeJobs] = useState([
     {
       id: 1,
@@ -59,7 +60,7 @@ export default function ActiveJobsPage() {
   const [selectedStatus, setSelectedStatus] = useState("Active");
 
   return (
-    <div className="min-h-screen flex flex-col mesh-gradient no-scrollbar bg-[var(--background)]">
+    <div className="min-h-screen flex flex-col rounded-3xl mesh-gradient no-scrollbar bg-[var(--background)]">
       <main className="w-full px-4 md:px-8 py-6 md:py-10 max-w-[1600px] mx-auto">
         {/* Header Section */}
         <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-6">
@@ -78,12 +79,15 @@ export default function ActiveJobsPage() {
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
+              onClick={()=>{
+                router.push("/users/system/jobs/create/details");
+              }}
               className="w-full sm:w-auto active-tab-gradient text-white font-black px-8 py-4 rounded-2xl flex items-center justify-center gap-3 shadow-premium uppercase text-[10px] tracking-[0.2em]"
             >
               <span className="material-symbols-outlined text-lg">
                 add_circle
               </span>{" "}
-              Initialize Job
+              Create Job
             </motion.button>
           </Link>
         </header>
