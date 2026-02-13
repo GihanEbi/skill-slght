@@ -2,6 +2,7 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -25,7 +26,6 @@ export default function ActiveJobsPage() {
       tagColor: "primary",
       stats: { applied: 42, screening: 12, interview: 5, offer: 1, total: 60 },
       hiringTeam: ["Alex", "Jordan"],
-      teamCount: 2,
     },
     {
       id: 2,
@@ -37,7 +37,6 @@ export default function ActiveJobsPage() {
       tagColor: "orange",
       stats: { applied: 18, screening: 6, interview: 3, offer: 0, total: 27 },
       hiringTeam: ["Sarah"],
-      teamCount: 0,
     },
     {
       id: 3,
@@ -53,7 +52,6 @@ export default function ActiveJobsPage() {
         total: 130,
       },
       hiringTeam: ["Mike", "Elena"],
-      teamCount: 0,
     },
   ]);
 
@@ -61,29 +59,21 @@ export default function ActiveJobsPage() {
   const [selectedStatus, setSelectedStatus] = useState("Active");
 
   return (
-    <div className="min-h-screen rounded-3xl flex flex-col mesh-gradient no-scrollbar bg-[var(--background)]">
+    <div className="min-h-screen flex flex-col mesh-gradient no-scrollbar bg-[var(--background)]">
       <main className="w-full px-4 md:px-8 py-6 md:py-10 max-w-[1600px] mx-auto">
         {/* Header Section */}
         <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-6">
           <div className="space-y-1">
             <nav className="flex text-[9px] text-[var(--text-muted)] font-black uppercase tracking-[0.2em]">
-              <Link
-                href="/dashboard"
-                className="hover:text-primary transition-colors"
-              >
-                Dashboard
-              </Link>
-              <span className="mx-2 opacity-30">/</span>
               <span className="text-primary font-black">Active Jobs</span>
             </nav>
-            <h1 className="text-2xl md:text-4xl font-black tracking-tighter text-[var(--text-main)] uppercase italic">
+            <h1 className="text-2xl md:text-4xl font-black tracking-tighter text-[var(--text-main)] dark:text-white uppercase italic">
               Protocol Pipeline{" "}
               <span className="text-primary not-italic ml-1 text-sm font-medium opacity-60">
                 (12)
               </span>
             </h1>
           </div>
-
           <Link href="/users/system/jobs/create/details">
             <motion.button
               whileHover={{ scale: 1.02 }}
@@ -92,14 +82,14 @@ export default function ActiveJobsPage() {
             >
               <span className="material-symbols-outlined text-lg">
                 add_circle
-              </span>
+              </span>{" "}
               Initialize Job
             </motion.button>
           </Link>
         </header>
 
-        {/* --- Filter Bar --- */}
-        <section className="glass-panel rounded-3xl p-2 mb-8 border-[var(--border-subtle)] shadow-xl relative z-[150] overflow-visible">
+        {/* Filter Bar */}
+        <section className="glass-panel rounded-3xl p-2 mb-8 border-[var(--border-subtle)] shadow-xl relative z-[100] overflow-visible">
           <div className="flex flex-col lg:flex-row items-center gap-2">
             <div className="relative w-full lg:flex-1">
               <span className="material-symbols-outlined absolute left-5 top-1/2 -translate-y-1/2 text-[var(--text-muted)] text-xl">
@@ -111,9 +101,6 @@ export default function ActiveJobsPage() {
                 type="text"
               />
             </div>
-
-            <div className="h-8 w-px bg-[var(--border-subtle)] hidden lg:block mx-2" />
-
             <div className="flex flex-wrap items-center gap-3 p-2 w-full lg:w-auto overflow-visible">
               <ModernDropdown
                 label="Dept"
@@ -127,21 +114,20 @@ export default function ActiveJobsPage() {
                 setSelected={setSelectedStatus}
                 options={["Active", "Draft", "Paused"]}
               />
-
               <button className="bg-[var(--input-bg)] hover:bg-primary/10 text-primary rounded-xl border border-[var(--border-subtle)] flex items-center gap-2 px-4 py-2.5 transition-all font-black text-[10px] uppercase tracking-widest h-[42px]">
-                <span className="material-symbols-outlined text-lg">tune</span>
+                <span className="material-symbols-outlined text-lg">tune</span>{" "}
                 Refine
               </button>
             </div>
           </div>
         </section>
 
-        {/* Main List Area */}
+        {/* Job Cards List */}
         <motion.div
           variants={containerVariants}
           initial="hidden"
           animate="visible"
-          className="grid grid-cols-1 gap-4 relative z-10"
+          className="grid grid-cols-1 gap-4"
         >
           {activeJobs.map((job) => (
             <JobCard key={job.id} job={job} />
@@ -165,80 +151,22 @@ export default function ActiveJobsPage() {
 }
 
 /**
- * Custom Dropdown Component
- */
-function ModernDropdown({ label, selected, setSelected, options }: any) {
-  const [isOpen, setIsOpen] = useState(false);
-
-  return (
-    <div className="relative min-w-[140px]">
-      <button
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full bg-[var(--input-bg)] border border-[var(--border-subtle)] rounded-xl px-4 h-[42px] flex items-center justify-between gap-3 transition-all hover:border-primary group"
-      >
-        <div className="flex flex-col items-start">
-          <span className="text-[7px] font-black text-[var(--text-muted)] uppercase tracking-tighter leading-none mb-0.5">
-            {label}
-          </span>
-          <span className="text-[10px] font-black text-[var(--text-main)] uppercase tracking-widest truncate">
-            {selected}
-          </span>
-        </div>
-        <motion.span
-          animate={{ rotate: isOpen ? 180 : 0 }}
-          className="material-symbols-outlined text-primary text-lg"
-        >
-          expand_more
-        </motion.span>
-      </button>
-
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 5 }}
-            exit={{ opacity: 0, y: -10 }}
-            className="absolute left-0 right-0 mt-2 glass-panel rounded-2xl border border-[var(--glass-border)] shadow-2xl overflow-hidden backdrop-blur-3xl p-1 z-[999]"
-          >
-            {options.map((opt: string) => (
-              <button
-                key={opt}
-                type="button"
-                onClick={() => {
-                  setSelected(opt);
-                  setIsOpen(false);
-                }}
-                className={`w-full text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest transition-colors rounded-xl ${selected === opt ? "text-primary bg-primary/10" : "text-[var(--text-main)] hover:bg-primary/5"}`}
-              >
-                {opt}
-              </button>
-            ))}
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {isOpen && (
-        <div
-          className="fixed inset-0 z-[100]"
-          onClick={() => setIsOpen(false)}
-        />
-      )}
-    </div>
-  );
-}
-
-/**
- * Job Card Component
+ * --- Job Card Component ---
  */
 function JobCard({ job }: { job: any }) {
+  const router = useRouter();
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+
   return (
     <motion.div
       variants={itemVariants}
-      className="glass-panel rounded-3xl p-6 md:p-8 flex flex-col xl:flex-row items-start xl:items-center justify-between w-full gap-8 hover:border-primary/40 transition-all group relative overflow-hidden shadow-sm hover:shadow-md"
+      /* CRITICAL FIX: Higher z-index when menu is open */
+      style={{ zIndex: isMenuOpen ? 50 : 1 }}
+      className={`glass-panel rounded-3xl p-6 md:p-8 flex flex-col xl:flex-row items-start xl:items-center justify-between w-full gap-8 hover:border-primary/40 transition-all group relative overflow-visible shadow-sm hover:shadow-md`}
     >
       <div className="absolute top-0 left-0 w-1 h-full bg-primary opacity-0 group-hover:opacity-100 transition-opacity" />
 
+      {/* Content Section */}
       <div className="flex flex-col gap-4 w-full xl:w-1/4 text-left">
         <div className="flex items-start justify-between xl:justify-start gap-3">
           <h3 className="text-xl font-black text-[var(--text-main)] leading-tight uppercase tracking-tight group-hover:text-primary transition-colors italic">
@@ -268,6 +196,7 @@ function JobCard({ job }: { job: any }) {
         </div>
       </div>
 
+      {/* Pipeline Visual */}
       <div className="w-full xl:flex-1 xl:px-12">
         <div className="flex justify-between items-end mb-4 text-[10px] font-black uppercase tracking-widest">
           <div className="flex gap-5">
@@ -284,7 +213,7 @@ function JobCard({ job }: { job: any }) {
               </span>
             </span>
           </div>
-          <span className="text-primary">{job.stats.total} Active Leads</span>
+          <span className="text-primary">{job.stats.total} Leads</span>
         </div>
         <div className="w-full h-1.5 bg-black/[0.03] dark:bg-black/40 rounded-full flex gap-1 overflow-hidden border border-[var(--border-subtle)]">
           <div
@@ -306,27 +235,146 @@ function JobCard({ job }: { job: any }) {
         </div>
       </div>
 
+      {/* Team & Actions */}
       <div className="flex items-center justify-between w-full xl:w-auto xl:justify-end gap-10 pt-6 xl:pt-0 border-t border-[var(--border-subtle)] xl:border-none">
         <div className="flex -space-x-3">
           {job.hiringTeam.map((member: string, i: number) => (
             <img
               key={i}
-              className="w-10 h-10 rounded-2xl border-2 border-[var(--background)] object-cover bg-white shadow-sm"
+              className="w-10 h-10 rounded-2xl border-2 border-[var(--background)] object-cover bg-white shadow-md"
               src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${member}`}
               alt="Team"
             />
           ))}
         </div>
-        <div className="flex items-center gap-3">
-          <button className="active-tab-gradient text-white font-black px-6 py-3 rounded-2xl text-[10px] uppercase tracking-[0.2em] shadow-glow hover:scale-105 transition-all">
+        <div className="flex items-center gap-3 relative">
+          <button
+            className="active-tab-gradient text-white font-black px-6 py-3 rounded-2xl text-[10px] uppercase tracking-[0.2em] shadow-glow hover:scale-105 transition-all"
+            onClick={() => {
+              router.push(`/users/system/jobs/active_jobs/candidate_list`);
+            }}
+          >
             Access Pipeline
           </button>
-          <button className="w-11 h-11 flex items-center justify-center text-[var(--text-muted)] hover:text-primary transition-colors glass-panel rounded-xl">
-            <span className="material-symbols-outlined">more_horiz</span>
-          </button>
+
+          {/* Action Menu */}
+          <div className="relative">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsMenuOpen(!isMenuOpen);
+              }}
+              className={`w-11 h-11 flex items-center justify-center transition-all glass-panel rounded-xl ${isMenuOpen ? "text-primary border-primary shadow-glow" : "text-[var(--text-muted)] hover:text-primary"}`}
+            >
+              <span className="material-symbols-outlined">more_horiz</span>
+            </button>
+
+            <AnimatePresence>
+              {isMenuOpen && (
+                <>
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                    animate={{ opacity: 1, scale: 1, y: 5 }}
+                    exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                    className="absolute right-0 mt-2 w-48 glass-panel rounded-2xl border border-[var(--glass-border)] shadow-2xl overflow-hidden backdrop-blur-3xl p-1.5 z-[100]"
+                  >
+                    <MenuButton icon="edit" label="Edit Protocol" />
+                    <MenuButton icon="visibility" label="View Careers Page" />
+                    <div className="h-px bg-[var(--border-subtle)] my-1 mx-2" />
+                    <MenuButton icon="cancel" label="Close Listing" isDanger />
+                  </motion.div>
+                  {/* Invisible Backdrop to close on outside click */}
+                  <div
+                    className="fixed inset-0 z-[80]"
+                    onClick={() => setIsMenuOpen(false)}
+                  />
+                </>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
       </div>
     </motion.div>
+  );
+}
+
+/** * Dropdown Menu Item Component
+ */
+function MenuButton({
+  icon,
+  label,
+  isDanger,
+}: {
+  icon: string;
+  label: string;
+  isDanger?: boolean;
+}) {
+  return (
+    <button
+      className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${isDanger ? "text-red-500 hover:bg-red-500/10" : "text-[var(--text-main)] hover:bg-primary/10 hover:text-primary"}`}
+    >
+      <span className="material-symbols-outlined text-lg">{icon}</span>
+      {label}
+    </button>
+  );
+}
+
+/** Standard Helpers */
+function ModernDropdown({ label, selected, setSelected, options }: any) {
+  const [isOpen, setIsOpen] = useState(false);
+  return (
+    <div className="relative min-w-[140px]">
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full bg-[var(--input-bg)] border border-[var(--border-subtle)] rounded-xl px-4 h-[42px] flex items-center justify-between gap-3 hover:border-primary group transition-all"
+      >
+        <div className="flex flex-col items-start">
+          <span className="text-[7px] font-black text-[var(--text-muted)] uppercase tracking-tighter leading-none mb-0.5">
+            {label}
+          </span>
+          <span className="text-[10px] font-black text-[var(--text-main)] uppercase tracking-widest truncate">
+            {selected}
+          </span>
+        </div>
+        <motion.span
+          animate={{ rotate: isOpen ? 180 : 0 }}
+          className="material-symbols-outlined text-primary text-lg"
+        >
+          expand_more
+        </motion.span>
+      </button>
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 5 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="absolute left-0 right-0 mt-2 glass-panel rounded-2xl border border-[var(--glass-border)] shadow-2xl overflow-hidden backdrop-blur-3xl p-1 z-[999]"
+          >
+            {options.map((opt: string) => (
+              <button
+                key={opt}
+                type="button"
+                onClick={() => {
+                  setSelected(opt);
+                  setIsOpen(false);
+                }}
+                className={`w-full text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest rounded-xl transition-colors ${selected === opt ? "text-primary bg-primary/10" : "text-[var(--text-main)] hover:bg-primary/5"}`}
+              >
+                {opt}
+              </button>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+      {isOpen && (
+        <div
+          className="fixed inset-0 z-[100]"
+          onClick={() => setIsOpen(false)}
+        />
+      )}
+    </div>
   );
 }
 
@@ -334,7 +382,7 @@ function PaginationButton({ label, icon, active, disabled }: any) {
   return (
     <button
       disabled={disabled}
-      className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-all border ${active ? "bg-primary/20 text-primary border-primary/30 shadow-glow" : "glass-panel text-[var(--text-muted)] border-[var(--border-subtle)] hover:text-primary disabled:opacity-20"}`}
+      className={`w-11 h-11 rounded-2xl flex items-center justify-center border transition-all ${active ? "bg-primary/20 text-primary border-primary/30 shadow-glow" : "glass-panel text-[var(--text-muted)] border-[var(--border-subtle)] hover:text-primary disabled:opacity-20"}`}
     >
       {icon ? (
         <span className="material-symbols-outlined text-xl">{icon}</span>

@@ -3,16 +3,18 @@ import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 
+type FlowState = "idle" | "publishing" | "success";
+
 export default function PreviewPage() {
   const [viewMode, setViewMode] = useState<"desktop" | "mobile">("desktop");
   const [showPublishModal, setShowPublishModal] = useState(false);
+  const [flowState, setFlowState] = useState<FlowState>("idle");
+
   const [hiringType, setHiringType] = useState<"internal" | "external">(
     "internal",
   );
   const [platforms, setPlatforms] = useState<string[]>([]);
   const [saveAsTemplate, setSaveAsTemplate] = useState(false);
-
-  // Custom Dropdown State
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [selectedManager, setSelectedManager] = useState(
     "Alex Rivera (Product Lead)",
@@ -25,7 +27,15 @@ export default function PreviewPage() {
     "James Wilson (Talent Acquisition)",
   ];
 
-  const handleNext = () => setShowPublishModal(true);
+  const handleStartPublish = () => {
+    setShowPublishModal(false);
+    setFlowState("publishing");
+
+    // Modern 2-second simulation
+    setTimeout(() => {
+      setFlowState("success");
+    }, 2000);
+  };
 
   const togglePlatform = (p: string) => {
     setPlatforms((prev) =>
@@ -34,8 +44,8 @@ export default function PreviewPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col mesh-gradient rounded-3xl no-scrollbar bg-[var(--background)]">
-      {/* --- PUBLISH MODAL --- */}
+    <div className="min-h-screen flex flex-col rounded-3xl mesh-gradient no-scrollbar bg-[var(--background)]">
+      {/* --- 1. PUBLISH SETTINGS MODAL --- */}
       <AnimatePresence>
         {showPublishModal && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -43,10 +53,7 @@ export default function PreviewPage() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              onClick={() => {
-                setShowPublishModal(false);
-                setIsDropdownOpen(false);
-              }}
+              onClick={() => setShowPublishModal(false)}
               className="absolute inset-0 bg-black/80 backdrop-blur-md"
             />
             <motion.div
@@ -55,10 +62,10 @@ export default function PreviewPage() {
               exit={{ scale: 0.9, opacity: 0, y: 20 }}
               className="relative w-full max-w-lg glass-panel rounded-[2rem] p-6 md:p-10 shadow-premium border-primary/20 overflow-visible max-h-[95vh] overflow-y-auto"
             >
-              <div className="absolute -top-24 -left-24 w-64 h-64 bg-primary/20 blur-[80px] rounded-full pointer-events-none" />
+              <div className="absolute -top-24 -left-24 w-64 h-64 bg-primary/10 blur-[80px] rounded-full pointer-events-none" />
 
               <div className="relative z-10">
-                <h2 className="text-2xl font-black text-[var(--text-main)] dark:text-white uppercase tracking-tighter mb-6">
+                <h2 className="text-2xl font-black text-[var(--text-main)] dark:text-white uppercase tracking-tighter mb-6 italic">
                   Deployment Settings
                 </h2>
 
@@ -109,14 +116,14 @@ export default function PreviewPage() {
                     )}
                   </AnimatePresence>
 
-                  {/* CUSTOM HIRING MANAGER DROPDOWN */}
+                  {/* Hiring Manager Dropdown */}
                   <div className="space-y-3 relative">
                     <label className="text-[10px] font-black uppercase text-[var(--text-muted)] tracking-widest">
                       Hiring Manager
                     </label>
                     <button
                       onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                      className="w-full bg-[var(--input-bg)] border border-[var(--border-subtle)] rounded-2xl py-3.5 px-4 text-sm font-bold text-[var(--text-main)] flex items-center justify-between hover:border-primary/50 transition-all"
+                      className="premium-input rounded-2xl py-3.5 px-4 text-sm font-bold text-[var(--text-main)] flex items-center justify-between hover:border-primary/50 transition-all"
                     >
                       <span>{selectedManager}</span>
                       <motion.span
@@ -126,7 +133,6 @@ export default function PreviewPage() {
                         expand_more
                       </motion.span>
                     </button>
-
                     <AnimatePresence>
                       {isDropdownOpen && (
                         <motion.div
@@ -135,16 +141,16 @@ export default function PreviewPage() {
                           exit={{ opacity: 0, y: -10 }}
                           className="absolute w-full z-[110] glass-panel rounded-2xl border border-[var(--glass-border)] shadow-2xl overflow-hidden backdrop-blur-3xl p-1"
                         >
-                          {managers.map((manager) => (
+                          {managers.map((m) => (
                             <button
-                              key={manager}
+                              key={m}
                               onClick={() => {
-                                setSelectedManager(manager);
+                                setSelectedManager(m);
                                 setIsDropdownOpen(false);
                               }}
-                              className={`w-full text-left px-4 py-3 text-sm font-bold transition-colors rounded-xl ${selectedManager === manager ? "text-primary bg-primary/10" : "text-[var(--text-main)] hover:bg-primary/5"}`}
+                              className={`w-full text-left px-4 py-3 text-sm font-bold transition-colors rounded-xl ${selectedManager === m ? "text-primary bg-primary/10" : "text-[var(--text-main)] hover:bg-primary/5"}`}
                             >
-                              {manager}
+                              {m}
                             </button>
                           ))}
                         </motion.div>
@@ -152,42 +158,49 @@ export default function PreviewPage() {
                     </AnimatePresence>
                   </div>
 
-                  {/* Save as Template */}
+                  {/* Save as Template Option */}
                   <div className="space-y-4 pt-4 border-t border-[var(--border-subtle)]">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-black text-[var(--text-main)] uppercase tracking-widest">
-                        Save as template?
+                        Save as reusable protocol?
                       </span>
                       <button
                         onClick={() => setSaveAsTemplate(!saveAsTemplate)}
-                        className={`w-12 h-6 rounded-full transition-all relative ${saveAsTemplate ? "bg-primary shadow-glow" : "bg-black/20 dark:bg-white/10"}`}
+                        className={`w-11 h-6 rounded-full transition-all relative flex items-center px-1 ${saveAsTemplate ? "bg-primary shadow-glow" : "bg-black/20 dark:bg-white/10"}`}
                       >
                         <motion.div
-                          animate={{ x: saveAsTemplate ? 26 : 4 }}
-                          className="absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm"
+                          animate={{ x: saveAsTemplate ? 20 : 0 }}
+                          className="w-4 h-4 bg-white rounded-full shadow-sm"
                         />
                       </button>
                     </div>
-                    {saveAsTemplate && (
-                      <motion.input
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        placeholder="Protocol Name"
-                        className="w-full bg-[var(--input-bg)] border border-[var(--border-subtle)] rounded-2xl py-3 px-4 text-sm font-bold text-[var(--text-main)] outline-none focus:border-primary transition-all"
-                      />
-                    )}
+                    <AnimatePresence>
+                      {saveAsTemplate && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: "auto", opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          className="overflow-hidden"
+                        >
+                          <input
+                            placeholder="Template Name (e.g. Engineering Lead Protocol)"
+                            className="premium-input rounded-2xl py-3.5 px-4 text-sm font-bold text-[var(--text-main)] focus:border-primary transition-all"
+                          />
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </div>
                 </div>
 
-                <div className="flex flex-col sm:flex-row gap-3 mt-8">
+                <div className="flex flex-col sm:flex-row gap-3 mt-10">
                   <button
                     onClick={() => setShowPublishModal(false)}
-                    className="flex-1 py-4 text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors order-2 sm:order-1"
+                    className="flex-1 py-4 text-[10px] font-black uppercase text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors order-2 sm:order-1"
                   >
                     Cancel
                   </button>
                   <button
-                    onClick={() => router.push("/users/system/jobs/active_jobs")}
+                    onClick={handleStartPublish}
                     className="flex-[2] active-tab-gradient py-4 rounded-2xl text-white text-[10px] font-black uppercase tracking-[0.2em] shadow-glow order-1 sm:order-2"
                   >
                     Confirm & Publish
@@ -198,8 +211,83 @@ export default function PreviewPage() {
           </div>
         )}
       </AnimatePresence>
-
-      {/* --- PROGRESS STEPPER --- */}
+      {/* --- 2. MODERN LOADER SCREEN --- */}
+      <AnimatePresence>
+        {flowState === "publishing" && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-[var(--background)]"
+          >
+            <div className="relative w-24 h-24 md:w-32 md:h-32">
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+                className="w-full h-full border-4 border-primary/10 border-t-primary rounded-full"
+              />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="material-symbols-outlined text-primary text-4xl md:text-5xl animate-pulse">
+                  rocket_launch
+                </span>
+              </div>
+            </div>
+            <motion.p
+              initial={{ y: 10, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.3 }}
+              className="mt-8 text-[10px] font-black text-primary uppercase tracking-[0.4em] text-center"
+            >
+              Syncing Protocol Nodes...
+            </motion.p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      {/* --- 3. SUCCESS MODAL --- */}
+      <AnimatePresence>
+        {flowState === "success" && (
+          <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="absolute inset-0 bg-black/40 backdrop-blur-xl"
+            />
+            <motion.div
+              initial={{ scale: 0.5, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="relative w-full max-w-sm glass-panel rounded-[3rem] p-8 md:p-12 text-center shadow-premium border-primary/30"
+            >
+              <div className="w-20 h-20 bg-primary/20 rounded-full flex items-center justify-center mx-auto mb-6 border border-primary/30 shadow-glow">
+                <span className="material-symbols-outlined text-primary text-4xl">
+                  verified
+                </span>
+              </div>
+              <h2 className="text-2xl font-black text-[var(--text-main)] uppercase tracking-tighter mb-2 italic">
+                Job Live
+              </h2>
+              <p className="text-xs text-[var(--text-muted)] font-medium mb-8">
+                Protocol broadcast successful. Candidates can now initialize
+                applications.
+              </p>
+              <div className="space-y-3">
+                <button
+                  onClick={() => router.push("/users/system/jobs/active")}
+                  className="w-full active-tab-gradient py-4 rounded-2xl text-white text-[10px] font-black uppercase tracking-widest shadow-glow"
+                >
+                  View Listing
+                </button>
+                <button
+                  onClick={() => router.push("/users/system/dashboard")}
+                  className="w-full py-4 text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors"
+                >
+                  Dashboard
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+      {/* --- MAIN PAGE CONTENT --- */}
       <header className="w-full px-4 pt-6 md:pt-10">
         <div className="max-w-3xl mx-auto flex items-center justify-between relative px-2">
           <StepItem icon="check_circle" label="Details" completed />
@@ -211,43 +299,39 @@ export default function PreviewPage() {
           <StepItem icon="visibility" label="Preview" active />
         </div>
       </header>
-
-      {/* --- PREVIEW CONTENT --- */}
       <main className="flex-1 max-w-7xl mx-auto w-full px-4 py-6 md:py-10">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8 items-start pb-32 lg:pb-0">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8 items-start pb-32">
           <div className="col-span-1 lg:col-span-8 order-2 lg:order-1">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               className="glass-panel rounded-[2rem] p-5 md:p-10 shadow-xl"
             >
-              <div className="mb-6 border-b border-[var(--border-subtle)] pb-6 flex flex-col md:flex-row md:items-end justify-between gap-4">
+              <div className="mb-6 flex flex-col md:flex-row justify-between gap-4 border-b border-[var(--border-subtle)] pb-6">
                 <div>
-                  <h1 className="text-2xl md:text-3xl font-black text-[var(--text-main)] mb-1 uppercase tracking-tighter">
-                    Review Job Posting
+                  <h1 className="text-2xl md:text-3xl font-black text-[var(--text-main)] uppercase tracking-tighter italic">
+                    Review Node
                   </h1>
-                  <p className="text-xs md:text-sm text-[var(--text-muted)] font-medium">
-                    Finalize how the job appears on your careers page.
+                  <p className="text-xs text-[var(--text-muted)] font-medium">
+                    Finalize deployment configuration.
                   </p>
                 </div>
-
-                <div className="flex items-center bg-black/5 dark:bg-black/40 p-1 rounded-xl border border-[var(--border-subtle)] self-start">
+                <div className="flex bg-black/5 dark:bg-black/40 p-1 rounded-xl border border-[var(--border-subtle)] self-start">
                   <button
                     onClick={() => setViewMode("desktop")}
-                    className={`px-4 py-2 rounded-lg text-[10px] font-black flex items-center gap-2 uppercase tracking-wider transition-all ${viewMode === "desktop" ? "bg-primary text-white shadow-glow" : "text-[var(--text-muted)]"}`}
+                    className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${viewMode === "desktop" ? "bg-primary text-white shadow-glow" : "text-[var(--text-muted)]"}`}
                   >
                     Desktop
                   </button>
                   <button
                     onClick={() => setViewMode("mobile")}
-                    className={`px-4 py-2 rounded-lg text-[10px] font-black flex items-center gap-2 uppercase tracking-wider transition-all ${viewMode === "mobile" ? "bg-primary text-white shadow-glow" : "text-[var(--text-muted)]"}`}
+                    className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${viewMode === "mobile" ? "bg-primary text-white shadow-glow" : "text-[var(--text-muted)]"}`}
                   >
                     Mobile
                   </button>
                 </div>
               </div>
 
-              {/* Responsive Mockup Container */}
               <motion.div
                 animate={{ width: viewMode === "desktop" ? "100%" : "375px" }}
                 className="mx-auto rounded-[1.5rem] overflow-hidden border border-white/5 bg-[#0f0f13] shadow-premium transition-all duration-500"
@@ -336,7 +420,6 @@ export default function PreviewPage() {
             </motion.div>
           </div>
 
-          {/* AI Checklist Sidebar */}
           <div className="col-span-1 lg:col-span-4 lg:sticky lg:top-10 order-1 lg:order-2">
             <motion.div
               initial={{ opacity: 0, x: 20 }}
@@ -375,35 +458,80 @@ export default function PreviewPage() {
           </div>
         </div>
       </main>
-
-      {/* --- FOOTER --- */}
+      {/* --- STICKY FOOTER --- */}
+      //{" "}
       <footer className="bottom-0 mt-auto">
         <div className="max-w-7xl mx-auto px-4 h-20 flex items-center justify-between">
           <button
-            className="flex items-center gap-1 text-[var(--text-muted)] font-black uppercase text-[10px] tracking-widest hover:text-[var(--text-main)] transition-all group"
-            onClick={() => router.push("/users/system/jobs/create/comp")}
+            className="flex items-center gap-1 text-[var(--text-muted)] font-black uppercase text-[10px] tracking-widest hover:text-[var(--text-main)]"
+            onClick={() => router.back()}
           >
-            <span className="material-symbols-outlined group-hover:-translate-x-1 transition-transform text-sm">
+            <span className="material-symbols-outlined text-sm">
               arrow_back
             </span>
             <span className="hidden sm:inline">Back</span>
           </button>
-          <div className="flex items-center gap-2 md:gap-4">
-            <button className="hidden sm:block px-6 py-2.5 rounded-xl border border-[var(--border-subtle)] text-[var(--text-muted)] font-black text-[10px] tracking-widest uppercase hover:bg-black/5">
-              Draft
-            </button>
-            <button
-              className="active-tab-gradient px-6 md:px-10 py-3 rounded-xl text-white font-black text-[10px] tracking-[0.15em] uppercase flex items-center gap-2 shadow-premium"
-              onClick={handleNext}
-            >
-              Publish{" "}
-              <span className="material-symbols-outlined text-sm">
-                rocket_launch
-              </span>
-            </button>
-          </div>
+          <button
+            className="active-tab-gradient px-8 md:px-12 py-3 rounded-xl text-white font-black text-[10px] tracking-[0.15em] uppercase shadow-premium flex items-center gap-3 hover:scale-105 transition-all"
+            onClick={() => setShowPublishModal(true)}
+          >
+            Publish{" "}
+            <span className="material-symbols-outlined text-sm">
+              rocket_launch
+            </span>
+          </button>
         </div>
       </footer>
+    </div>
+  );
+}
+
+// --- HELPER COMPONENTS ---
+function TypeButtonSmall({ label, active, onClick }: any) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex-1 py-3 rounded-xl border transition-all text-[10px] font-black uppercase tracking-widest ${active ? "bg-primary text-white shadow-glow border-primary" : "bg-[var(--input-bg)] border-[var(--border-subtle)] text-[var(--text-muted)] hover:border-primary/50"}`}
+    >
+      {label}
+    </button>
+  );
+}
+
+function StepItem({ icon, label, active = false, completed = false }: any) {
+  return (
+    <div className="flex flex-col items-center gap-1.5 z-10">
+      <div
+        className={`w-9 h-9 md:w-10 md:h-10 rounded-xl flex items-center justify-center transition-all ${active ? "bg-primary text-white shadow-glow scale-110" : completed ? "bg-primary/20 text-primary border border-primary/30" : "bg-[var(--surface)] border border-[var(--border-subtle)] text-[var(--text-muted)] opacity-50"}`}
+      >
+        <span className="material-symbols-outlined text-lg md:text-xl">
+          {icon}
+        </span>
+      </div>
+      <span
+        className={`text-[7px] md:text-[9px] font-black uppercase tracking-widest hidden sm:block ${active ? "text-primary" : "text-[var(--text-muted)]"}`}
+      >
+        {label}
+      </span>
+    </div>
+  );
+}
+
+function StepLine({ active = false }: any) {
+  return (
+    <div className="flex-1 h-[1px] bg-[var(--border-subtle)] mx-1 md:mx-2 translate-y-[-10px] sm:translate-y-[-12px]" />
+  );
+}
+
+function CheckItem({ label }: any) {
+  return (
+    <div className="flex items-center gap-3 p-3 bg-[var(--input-bg)] rounded-xl border border-emerald-500/10">
+      <div className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-500">
+        <span className="material-symbols-outlined text-xs">check</span>
+      </div>
+      <span className="text-[11px] font-bold text-[var(--text-main)]">
+        {label}
+      </span>
     </div>
   );
 }
@@ -435,53 +563,6 @@ function BenefitBadge({ icon, label }: any) {
         <span className="material-symbols-outlined text-sm">{icon}</span>
       </div>
       <span>{label}</span>
-    </div>
-  );
-}
-
-// --- HELPER COMPONENTS ---
-function TypeButtonSmall({ label, active, onClick }: any) {
-  return (
-    <button
-      onClick={onClick}
-      className={`flex-1 py-3 rounded-xl border transition-all text-[10px] font-black uppercase tracking-widest ${active ? "bg-primary text-white shadow-glow border-primary" : "bg-[var(--input-bg)] border-[var(--border-subtle)] text-[var(--text-muted)]"}`}
-    >
-      {label}
-    </button>
-  );
-}
-function StepItem({ icon, label, active = false, completed = false }: any) {
-  return (
-    <div className="flex flex-col items-center gap-1.5 z-10">
-      <div
-        className={`w-9 h-9 md:w-10 md:h-10 rounded-xl flex items-center justify-center transition-all ${active ? "bg-primary text-white shadow-glow scale-110" : completed ? "bg-primary/20 text-primary border border-primary/30" : "bg-[var(--surface)] border border-[var(--border-subtle)] text-[var(--text-muted)] opacity-50"}`}
-      >
-        <span className="material-symbols-outlined text-lg md:text-xl">
-          {icon}
-        </span>
-      </div>
-      <span
-        className={`text-[8px] font-black uppercase tracking-widest hidden sm:block ${active ? "text-primary" : "text-[var(--text-muted)]"}`}
-      >
-        {label}
-      </span>
-    </div>
-  );
-}
-function StepLine({ active = false }: any) {
-  return (
-    <div className="flex-1 h-[1px] bg-[var(--border-subtle)] mx-1 md:mx-2 translate-y-[-10px] sm:translate-y-[-12px]" />
-  );
-}
-function CheckItem({ label }: any) {
-  return (
-    <div className="flex items-center gap-3 p-3 bg-[var(--input-bg)] rounded-xl border border-emerald-500/10">
-      <div className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-500">
-        <span className="material-symbols-outlined text-xs">check</span>
-      </div>
-      <span className="text-[11px] font-bold text-[var(--text-main)]">
-        {label}
-      </span>
     </div>
   );
 }

@@ -31,6 +31,7 @@ export default function JobsSideBar({
       icon: "rocket_launch",
       label: "Active Jobs",
       href: "/users/system/jobs/active_jobs",
+      activePattern: "/users/system/jobs/active_jobs",
     },
     {
       icon: "add_circle",
