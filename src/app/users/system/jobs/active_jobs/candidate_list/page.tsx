@@ -325,68 +325,6 @@ export default function JobPipelinePage() {
     </div>
   );
 }
-
-// --- List Card (No Match Score) ---
-// function CandidateCard({ candidate }: any) {
-//   return (
-//     <motion.div
-//       variants={itemVariants}
-//       className={`glass-panel rounded-[2rem] p-6 border-[var(--border-subtle)] ${candidate.isUnicorn ? "border-primary/40 shadow-glow" : ""}`}
-//     >
-//       <div className="flex items-center gap-4 mb-6">
-//         <div className="w-14 h-14 rounded-2xl border-2 border-primary/20 overflow-hidden bg-[var(--surface)]">
-//           <img
-//             alt={candidate.name}
-//             className="w-full h-full object-cover"
-//             src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${candidate.name}`}
-//           />
-//         </div>
-//         <div>
-//           <h3 className="font-black text-lg text-[var(--text-main)] tracking-tight uppercase leading-none mb-1">
-//             {candidate.name}
-//           </h3>
-//           <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wide opacity-80">
-//             {candidate.info}
-//           </p>
-//           <div className="flex gap-2 mt-2">
-//             <span className="px-2 py-0.5 rounded-lg bg-[var(--input-bg)] text-[var(--text-muted)] text-[9px] font-black uppercase tracking-widest border border-[var(--border-subtle)]">
-//               {candidate.status}
-//             </span>
-//             <span className="text-[var(--text-muted)] text-[9px] font-black uppercase opacity-60 self-center">
-//               {candidate.updated}
-//             </span>
-//           </div>
-//         </div>
-//       </div>
-
-//       <div className="mb-6">
-//         <div className="text-[9px] text-[var(--text-muted)] font-black uppercase tracking-widest mb-3 opacity-60">
-//           Tech stack
-//         </div>
-//         <div className="flex flex-wrap gap-2">
-//           {candidate.skills.map((s: string, idx: number) => (
-//             <span
-//               key={idx}
-//               className="px-2.5 py-1 rounded-lg bg-[var(--input-bg)] text-[var(--text-main)] text-[10px] font-black uppercase border border-[var(--border-subtle)]"
-//             >
-//               {s}
-//             </span>
-//           ))}
-//         </div>
-//       </div>
-
-//       <div className="flex gap-2 pt-4 border-t border-[var(--border-subtle)]">
-//         <button className="flex-grow py-3 rounded-xl bg-primary text-[var(--background)] text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all">
-//           Move Node
-//         </button>
-//         <button className="p-2.5 rounded-xl border border-[var(--border-subtle)] text-[var(--text-muted)] hover:text-primary transition-all">
-//           <span className="material-symbols-outlined text-xl">chat_bubble</span>
-//         </button>
-//       </div>
-//     </motion.div>
-//   );
-// }
-
 function CandidateCard({ candidate }: any) {
   return (
     <motion.div
