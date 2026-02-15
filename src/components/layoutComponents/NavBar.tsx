@@ -2,12 +2,11 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion"; // Added AnimatePresence
 import { ThemeToggle } from "../themeComponents/theme-toggle";
 
 const navItems = [
   { label: "Dashboard", href: "/users/system/dashboard" },
-  // Use the base path for matching patterns
   {
     label: "Jobs",
     href: "/users/system/jobs/active_jobs",
@@ -41,7 +40,7 @@ export default function Navbar({ onMenuClick }: { onMenuClick: () => void }) {
               blur_on
             </span>
           </div>
-          <h1 className="text-2xl font-black tracking-tighter whitespace-nowrap hidden xl:block">
+          <h1 className="text-2xl font-black tracking-tighter whitespace-nowrap hidden xl:block text-[var(--text-main)]">
             SKILL{" "}
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent">
               SLIGHT
@@ -49,12 +48,12 @@ export default function Navbar({ onMenuClick }: { onMenuClick: () => void }) {
           </h1>
         </div>
 
-        {/* Desktop Navigation Items */}
-        <nav className="hidden lg:flex items-center gap-1 relative">
+        {/* Desktop Navigation */}
+        <nav
+          className="hidden lg:flex items-center gap-1 relative"
+          onMouseLeave={() => setHoveredIndex(null)} // Ensures hover state clears correctly
+        >
           {navItems.map((item, index) => {
-            // UPDATED LOGIC:
-            // If activePattern exists, check if pathname starts with it.
-            // Otherwise, do an exact match.
             const isActive = item.activePattern
               ? pathname.startsWith(item.activePattern)
               : pathname === item.href;
@@ -64,31 +63,40 @@ export default function Navbar({ onMenuClick }: { onMenuClick: () => void }) {
                 key={item.label}
                 href={item.href}
                 onMouseEnter={() => setHoveredIndex(index)}
-                onMouseLeave={() => setHoveredIndex(null)}
                 className={`relative px-4 py-2 rounded-xl text-sm font-bold transition-colors duration-300 ${
                   isActive
                     ? "text-primary"
                     : "text-slate-400 hover:text-[var(--text-main)]"
                 }`}
               >
-                {/* Background Hover Highlight */}
-                {hoveredIndex === index && (
-                  <motion.div
-                    layoutId="nav-hover"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                    className="absolute inset-0 bg-primary/10 rounded-xl z-[-1]"
-                  />
-                )}
+                {/* Background Sliding Hover */}
+                <AnimatePresence>
+                  {hoveredIndex === index && (
+                    <motion.div
+                      layoutId="nav-hover-bg"
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      transition={{
+                        type: "spring",
+                        stiffness: 400,
+                        damping: 30,
+                      }}
+                      className="absolute inset-0 bg-primary/10 rounded-xl z-0"
+                    />
+                  )}
+                </AnimatePresence>
 
-                {/* Active Underline */}
+                {/* Sliding Active Underline */}
                 {isActive && (
                   <motion.div
-                    layoutId="nav-active"
-                    className="absolute bottom-0 left-4 right-4 h-0.5 bg-primary rounded-full"
-                    transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                    layoutId="nav-active-line"
+                    className="absolute bottom-0 left-2 right-2 h-0.5 bg-primary rounded-full z-10"
+                    transition={{
+                      type: "spring",
+                      stiffness: 350,
+                      damping: 25,
+                    }}
                   />
                 )}
 
@@ -99,9 +107,10 @@ export default function Navbar({ onMenuClick }: { onMenuClick: () => void }) {
         </nav>
       </div>
 
+      {/* Right Side Items */}
       <div className="flex items-center gap-3 lg:gap-6">
         <div className="flex items-center gap-2">
-          <button className="relative w-10 h-10 flex items-center justify-center rounded-xl text-slate-400 hover:text-blue-500 hover:bg-blue-500/10 transition-all group">
+          <button className="relative w-10 h-10 flex items-center justify-center rounded-xl text-slate-400 hover:text-primary hover:bg-primary/10 transition-all">
             <span className="material-symbols-outlined text-[24px]">
               notifications
             </span>
@@ -117,15 +126,15 @@ export default function Navbar({ onMenuClick }: { onMenuClick: () => void }) {
             <p className="text-sm font-black leading-tight text-[var(--text-main)]">
               Alex Rivera
             </p>
-            <p className="text-[10px] text-blue-500 font-black uppercase tracking-tighter">
+            <p className="text-[10px] text-primary font-black uppercase tracking-tighter">
               Core Contributor
             </p>
           </div>
           <div className="relative">
-            <div className="w-10 h-10 rounded-full bg-slate-200 border-2 border-blue-500/20 overflow-hidden group-hover:border-blue-500/50 transition-all">
+            <div className="w-10 h-10 rounded-full bg-slate-200 border-2 border-primary/20 overflow-hidden group-hover:border-primary transition-all">
               <img
                 src="https://api.dicebear.com/7.x/avataaars/svg?seed=Alex"
-                alt="User Avatar"
+                alt="Avatar"
                 className="w-full h-full object-cover"
               />
             </div>

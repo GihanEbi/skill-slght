@@ -13,6 +13,7 @@
     "isolatedModules": true,
     "jsx": "react-jsx",
     "incremental": true,
+    "forceConsistentCasingInFileNames": true, // Added for cross-platform safety
     "plugins": [
       {
         "name": "next"

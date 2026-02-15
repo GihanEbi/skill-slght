@@ -3,10 +3,11 @@
 @theme {
   --font-display: "Inter", "Plus Jakarta Sans", sans-serif;
   --color-primary: #10b981;
+  --color-primary-light: #e6f9f2;
   --color-secondary: #059669;
   --color-accent: #34d399;
   --shadow-glow: 0 0 15px rgba(16, 185, 129, 0.2);
-  --shadow-premium: 0 10px 25px -5px rgba(16, 185, 129, 0.4);
+  --shadow-premium: 0 10px 25px -5px rgba(0, 0, 0, 0.04);
 }
 
 :root {
@@ -19,6 +20,12 @@
   --mesh-opacity: 0.06;
   --glass-bg: rgba(255, 255, 255, 0.8);
   --glass-border: rgba(16, 185, 129, 0.15);
+  /* NEW LIGHTER GREEN COLORS */
+  --side-panel-bg: #f0fdf4;
+  /* Ultra light green (Honeydew) */
+  --side-panel-text: #166534;
+  /* Deeper green text for readability */
+  --icon-bg: #dcfce7;
 
   /* Refined Input Colors for Light Mode */
   --input-bg: rgba(16, 185, 129, 0.03);
@@ -27,18 +34,17 @@
 
 .dark {
   /* Dark Mode Palette - Professional Obsidian */
-  --background: #0a0a0c;
-  --surface: #111114;
-  --border-subtle: rgba(255, 255, 255, 0.05);
+--background: #0f172a; 
+  --surface: #1e293b;
+  --border-subtle: rgba(255, 255, 255, 0.1);
   --text-main: #f8fafc;
   --text-muted: #94a3b8;
-  --mesh-opacity: 0.15;
-  --glass-bg: rgba(17, 17, 20, 0.7);
-  --glass-border: rgba(16, 185, 129, 0.1);
-
-  /* Refined Input Colors for Dark Mode */
-  --input-bg: rgba(0, 0, 0, 0.3);
-  --input-border: rgba(255, 255, 255, 0.05);
+  --glass-bg: rgba(30, 41, 59, 0.7); /* Matches your glass-morphism */
+  --glass-border: rgba(255, 255, 255, 0.1);
+  
+  /* Input colors for dark mode */
+  --input-bg: rgba(15, 23, 42, 0.5); /* bg-slate-900/50 */
+  --input-border: rgba(51, 65, 85, 0.5); /* border-slate-700/50 */
 }
 
 @layer base {
@@ -68,10 +74,9 @@
     scrollbar-width: none;
   }
 
+  /* CHANGED: Removed radial-gradient, set to standard background variable */
   .mesh-gradient {
-    background-image:
-      radial-gradient(at 0% 0%, rgba(16, 185, 129, var(--mesh-opacity)) 0px, transparent 50%),
-      radial-gradient(at 100% 100%, rgba(6, 182, 212, 0.1) 0px, transparent 50%);
+    @apply bg-[var(--background)];
   }
 
   .glass-panel {
@@ -80,9 +85,9 @@
     border-color: var(--glass-border);
   }
 
+  /* CHANGED: Removed linear-gradient, set to solid primary color */
   .active-tab-gradient {
-    background: linear-gradient(135deg, #10b981 0%, #06b6d4 100%);
-    @apply shadow-premium;
+    @apply bg-primary shadow-premium;
   }
 
   /* Premium Input Utility to replace muddy grays */
