@@ -210,9 +210,21 @@ function JobCard({ job }: { job: any }) {
               </span>
             </span>
             <span className="text-[var(--text-main)]">
+              {job.stats.screening}{" "}
+              <span className="text-[var(--text-muted)] font-normal ml-0.5">
+                Screening
+              </span>
+            </span>
+            <span className="text-[var(--text-main)]">
               {job.stats.interview}{" "}
               <span className="text-[var(--text-muted)] font-normal ml-0.5">
                 Interviews
+              </span>
+            </span>
+            <span className="text-[var(--text-main)]">
+              {job.stats.offer}{" "}
+              <span className="text-[var(--text-muted)] font-normal ml-0.5">
+                Offers
               </span>
             </span>
           </div>

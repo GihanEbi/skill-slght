@@ -19,11 +19,14 @@ export default function SignInPage() {
         <div className="flex gap-2 justify-center items-center mb-5">
           <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center text-white mb-1 shadow-glow">
             <span className="material-symbols-outlined text-4xl font-bold">
-              bolt
+              blur_on
             </span>
           </div>
           <h1 className="text-3xl font-bold tracking-tight text-[var(--text-main)]">
-            Skill Slight
+            SKILL{" "}
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent">
+              SIGHT
+            </span>
           </h1>
         </div>
 

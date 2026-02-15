@@ -43,7 +43,7 @@ export default function Navbar({ onMenuClick }: { onMenuClick: () => void }) {
           <h1 className="text-2xl font-black tracking-tighter whitespace-nowrap hidden xl:block text-[var(--text-main)]">
             SKILL{" "}
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent">
-              SLIGHT
+              SIGHT
             </span>
           </h1>
         </div>
