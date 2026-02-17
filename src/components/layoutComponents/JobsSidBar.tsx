@@ -43,7 +43,7 @@ export default function JobsSideBar({
     {
       icon: "archive",
       label: "Closed Jobs",
-      href: "/users/system/jobs/closed",
+      href: "/users/system/jobs/closed_jobs",
     },
     {
       icon: "content_copy",
