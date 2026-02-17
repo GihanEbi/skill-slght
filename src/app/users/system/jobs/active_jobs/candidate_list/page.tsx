@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { Suspense, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -14,7 +14,7 @@ const itemVariants = {
   visible: { y: 0, opacity: 1, transition: { duration: 0.4 } },
 };
 
-export default function JobPipelinePage() {
+function JobPipelineDetailPage() {
   const [isReviewingMatches, setIsReviewingMatches] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [selectedCandidate, setSelectedCandidate] = useState<any>(null);
@@ -494,8 +494,21 @@ export default function JobPipelinePage() {
   );
 }
 
+export default function JobPipelinePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center">
+          Loading Profile...
+        </div>
+      }
+    >
+      <JobPipelineDetailPage />
+    </Suspense>
+  );
+}
+
 function CandidateCard({ candidate, onEmailClick }: any) {
-  
   const router = useRouter();
   return (
     <motion.div
