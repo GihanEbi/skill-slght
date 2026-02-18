@@ -43,14 +43,14 @@ export default function DashboardPage() {
       >
         <div>
           <h1 className="text-2xl md:text-3xl font-black tracking-tighter text-[var(--text-main)] uppercase">
-            Recruitment Protocol
+            Recruitment Dashboard
           </h1>
-          <p className="text-xs md:text-sm font-medium text-[var(--text-muted)]">
+          {/* <p className="text-xs md:text-sm font-medium text-[var(--text-muted)]">
             Intelligence overview: Your AI agents have screened{" "}
             <span className="text-primary font-black">12 new nodes</span>.
-          </p>
+          </p> */}
         </div>
-        <div className="flex flex-col xs:flex-row items-center gap-3 w-full sm:w-auto">
+        <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
           <div className="relative w-full sm:w-64 group">
             <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] text-xl group-focus-within:text-primary transition-colors">
               search
@@ -73,7 +73,7 @@ export default function DashboardPage() {
               <span className="material-symbols-outlined text-lg">
                 add_circle
               </span>
-              Initialize Job
+              Create Job
             </motion.button>
           </Link>
         </div>

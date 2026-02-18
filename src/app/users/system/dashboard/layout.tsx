@@ -18,12 +18,12 @@ export default function DashboardLayout({
 
       {/* 2. Content Wrapper: Holds Sidebar and Main Content below the Navbar */}
       <div className="flex flex-1 overflow-hidden relative">
-        {/* <JobsSideBar
+        <JobsSideBar
           isCollapsed={isCollapsed}
           setIsCollapsed={setIsCollapsed}
           isMobileOpen={isMobileOpen}
           setIsMobileOpen={setIsMobileOpen}
-        /> */}
+        />
 
         <main className="flex-1 overflow-y-auto no-scrollbar p-6 md:p-10">
           {children}
