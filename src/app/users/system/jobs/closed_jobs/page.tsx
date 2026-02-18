@@ -2,6 +2,7 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -26,7 +27,7 @@ export default function ClosedJobsPage() {
       location: "San Francisco, CA",
       dateClosed: "Oct 24, 2023",
       timeToFill: "34 Days",
-      hiredCandidate: { name: "Sarah Jenkins", avatar: "Sarah" },
+      hiredCandidate: { name: "Sarah Jenkins", avatar: "avatar-1.jpg" },
       stats: { applied: 142, interview: 12, offer: 1, total: 142 },
     },
     {
@@ -37,7 +38,7 @@ export default function ClosedJobsPage() {
       location: "Remote",
       dateClosed: "Oct 15, 2023",
       timeToFill: "45 Days",
-      hiredCandidate: { name: "David Miller", avatar: "David" },
+      hiredCandidate: { name: "David Miller", avatar: "avatar-2.jpg" },
       stats: { applied: 89, interview: 8, offer: 1, total: 89 },
     },
     {
@@ -48,7 +49,7 @@ export default function ClosedJobsPage() {
       location: "London, UK",
       dateClosed: "Sep 28, 2023",
       timeToFill: "28 Days",
-      hiredCandidate: { name: "Michael Chen", avatar: "Michael" },
+      hiredCandidate: { name: "Michael Chen", avatar: "avatar-4.jpg" },
       stats: { applied: 56, interview: 4, offer: 1, total: 56 },
     },
   ]);
@@ -158,9 +159,7 @@ export default function ClosedJobsPage() {
         <header className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-10 gap-6">
           <div className="space-y-2">
             <nav className="flex text-xs font-semibold text-primary items-center gap-2">
-              <span className="opacity-60 text-[var(--text-muted)]">
-                Jobs
-              </span>
+              <span className="opacity-60 text-[var(--text-muted)]">Jobs</span>
               <span className="opacity-40 text-[var(--text-muted)]">/</span>
               <span>Closed Jobs</span>
             </nav>
@@ -310,10 +309,12 @@ function ClosedJobCard({ job, onReopen, isSelected, onSelect }: any) {
             Hired Candidate
           </span>
           <div className="flex items-center gap-3">
-            <img
-              className="w-8 h-8 rounded-lg border border-[var(--border-subtle)]"
-              src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${job.hiredCandidate.avatar}`}
+            <Image
+              src={`/images/avatar-img/${job.hiredCandidate.avatar}`}
+              width={100}
+              height={100}
               alt="Hired"
+              className="w-8 h-8 rounded-lg border border-[var(--border-subtle)]"
             />
             <span className="text-sm font-bold text-[var(--text-main)]">
               {job.hiredCandidate.name}

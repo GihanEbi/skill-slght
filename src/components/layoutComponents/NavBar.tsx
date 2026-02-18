@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion"; // Added AnimatePresence
 import { ThemeToggle } from "../themeComponents/theme-toggle";
+import Image from "next/image";
 
 const navItems = [
   { label: "Dashboard", href: "/users/system/dashboard" },
@@ -132,8 +133,10 @@ export default function Navbar({ onMenuClick }: { onMenuClick: () => void }) {
           </div>
           <div className="relative">
             <div className="w-10 h-10 rounded-full bg-slate-200 border-2 border-primary/20 overflow-hidden group-hover:border-primary transition-all">
-              <img
-                src="https://api.dicebear.com/7.x/avataaars/svg?seed=Alex"
+              <Image
+                src="/images/avatar-img/avatar-1.jpg"
+                width={100}
+                height={100}
                 alt="Avatar"
                 className="w-full h-full object-cover"
               />

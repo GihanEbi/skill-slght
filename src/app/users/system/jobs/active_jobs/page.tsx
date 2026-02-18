@@ -2,6 +2,7 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -28,7 +29,7 @@ export default function ActiveJobsPage() {
       tag: "New",
       tagColor: "primary",
       stats: { applied: 42, screening: 12, interview: 5, offer: 1, total: 60 },
-      hiringTeam: ["Alex", "Jordan"],
+      hiringTeam: ["avatar-1.jpg", "avatar-2.jpg"],
     },
     {
       id: 2,
@@ -40,7 +41,7 @@ export default function ActiveJobsPage() {
       tag: "Urgent",
       tagColor: "orange",
       stats: { applied: 18, screening: 6, interview: 3, offer: 0, total: 27 },
-      hiringTeam: ["Sarah"],
+      hiringTeam: ["avatar-4.jpg"],
     },
     {
       id: 3,
@@ -56,7 +57,7 @@ export default function ActiveJobsPage() {
         offer: 2,
         total: 130,
       },
-      hiringTeam: ["Mike", "Elena"],
+      hiringTeam: ["avatar-1.jpg", "avatar-3.png"],
     },
   ]);
 
@@ -476,11 +477,13 @@ function JobCard({ job, onClose, isSelected, onSelect }: any) {
       <div className="flex items-center justify-between w-full xl:w-auto xl:justify-end gap-8 pt-6 xl:pt-0 border-t border-[var(--border-subtle)] xl:border-none">
         <div className="flex -space-x-2.5">
           {job.hiringTeam.map((member: any, i: any) => (
-            <img
+            <Image
               key={i}
-              className="w-9 h-9 rounded-xl border-2 border-[var(--background)] object-cover bg-white shadow-sm ring-1 ring-black/5"
-              src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${member}`}
+              src={`/images/avatar-img/${member}`}
+              width={100}
+              height={100}
               alt="Team"
+              className="w-9 h-9 rounded-xl border-2 border-[var(--background)] object-cover bg-white shadow-sm ring-1 ring-black/5"
             />
           ))}
         </div>

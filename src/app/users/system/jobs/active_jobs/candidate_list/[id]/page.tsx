@@ -3,6 +3,7 @@ import React, { useState, Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import Image from "next/image";
 
 function CandidateDetailContent() {
   const router = useRouter();
@@ -583,10 +584,12 @@ function CandidateDetailContent() {
           <div className="flex items-center gap-6">
             <div className="relative">
               <div className="w-24 h-24 rounded-2xl border-2 border-primary overflow-hidden p-1 shadow-glow bg-[var(--surface)]">
-                <img
+                <Image
+                  src="/images/avatar-img/user-preview.png"
+                  width={100}
+                  height={100}
                   alt="Marcus"
                   className="w-full h-full object-cover rounded-xl"
-                  src="https://api.dicebear.com/7.x/avataaars/svg?seed=Marcus"
                 />
               </div>
               <div className="absolute -bottom-2 -right-2 bg-primary text-[var(--background)] p-1 rounded-lg flex items-center justify-center shadow-lg">

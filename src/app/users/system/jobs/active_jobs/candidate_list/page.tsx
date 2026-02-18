@@ -3,6 +3,7 @@ import React, { Suspense, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import Image from "next/image";
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -42,6 +43,7 @@ function JobPipelineDetailPage() {
       status: "Reviewing",
       updated: "2d ago",
       skills: ["Rust", "Solidity", "Go"],
+      avatar: "alkesh.png",
     },
     {
       name: "Sarah Chen",
@@ -49,6 +51,7 @@ function JobPipelineDetailPage() {
       status: "Interviewing",
       updated: "Today",
       skills: ["L2 Solutions", "DeFi Architecture"],
+      avatar: "ankit.png",
     },
     {
       name: "Marcus Thorne",
@@ -57,6 +60,7 @@ function JobPipelineDetailPage() {
       updated: "1w ago",
       skills: ["Protocol", "EVM"],
       isUnicorn: true,
+      avatar: "user-preview.png",
     },
     {
       name: "Elena Volkov",
@@ -64,6 +68,7 @@ function JobPipelineDetailPage() {
       status: "Screening",
       updated: "3h ago",
       skills: ["Math", "Privacy"],
+      avatar: "gihan.jpeg",
     },
   ];
 
@@ -74,7 +79,7 @@ function JobPipelineDetailPage() {
       status: "New Match",
       strength: "Rust / EVM Architecture",
       bio: "High contribution to Ethereum core repos. Expert in low-level protocol optimization.",
-      avatar: "Marcus",
+      avatar: "gihan.jpeg",
     },
     {
       name: "Julian Voss",
@@ -82,7 +87,7 @@ function JobPipelineDetailPage() {
       status: "New Match",
       strength: "Cryptography / Zero-Knowledge",
       bio: "Lead author on several ZK-Rollup implementations. PhD in Applied Math.",
-      avatar: "Julian",
+      avatar: "avatar-2.jpg",
     },
     {
       name: "Lina Wert",
@@ -90,7 +95,7 @@ function JobPipelineDetailPage() {
       status: "New Match",
       strength: "Full-Stack Web3 / Go",
       bio: "Built scalable indexing protocols. Strong focus on decentralized data availability.",
-      avatar: "Lina",
+      avatar: "avatar-4.jpg",
     },
   ];
 
@@ -398,10 +403,12 @@ function JobPipelineDetailPage() {
                       className="bg-primary/[0.03] border border-primary/10 rounded-2xl p-6 hover:border-primary/30 transition-all"
                     >
                       <div className="flex justify-between items-start mb-5">
-                        <img
-                          src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${c.avatar}`}
+                        <Image
+                          src={`/images/avatar-img/${c.avatar}`}
+                          width={100}
+                          height={100}
+                          alt={c.name}
                           className="w-12 h-12 rounded-xl bg-[var(--background)] shadow-sm"
-                          alt=""
                         />
                         <div className="text-right">
                           <div className="text-2xl font-bold text-primary tracking-tighter">
@@ -519,10 +526,12 @@ function CandidateCard({ candidate, onEmailClick }: any) {
       <div className="flex justify-between items-start mb-6">
         <div className="flex items-center gap-5">
           <div className="w-16 h-16 rounded-2xl border border-[var(--border-subtle)] p-0.5 overflow-hidden bg-[var(--surface)] shadow-sm">
-            <img
+            <Image
+              src={`/images/avatar-img/${candidate.avatar}`}
+              width={100}
+              height={100}
               alt={candidate.name}
               className="w-full h-full object-cover rounded-[0.8rem]"
-              src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${candidate.name}`}
             />
           </div>
           <div>

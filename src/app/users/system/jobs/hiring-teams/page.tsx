@@ -2,6 +2,7 @@
 import React, { useState } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
+import Image from "next/image";
 
 // Animation Variants
 const containerVariants = {
@@ -18,6 +19,7 @@ const teamMembers = [
   {
     id: 7,
     name: "Alex Rivers",
+    avatar: "avatar-2.jpg",
     role: "Senior Recruiter",
     tag: "Admin",
     tagColor: "bg-primary/10 text-primary border-primary/20",
@@ -30,6 +32,7 @@ const teamMembers = [
   {
     id: 8,
     name: "Sarah Chen",
+    avatar: "alkesh.png",
     role: "Engineering Manager",
     tag: "Interviewer",
     tagColor: "bg-blue-500/10 text-blue-400 border-blue-500/20",
@@ -42,6 +45,7 @@ const teamMembers = [
   {
     id: 9,
     name: "Marcus Thorne",
+    avatar: "profile-pic.png",
     role: "Tech Talent Partner",
     tag: "Recruiter",
     tagColor: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
@@ -54,6 +58,7 @@ const teamMembers = [
   {
     id: 10,
     name: "Elena Voss",
+    avatar: "avatar-1.jpg",
     role: "Product Lead",
     tag: "Interviewer",
     tagColor: "bg-blue-500/10 text-blue-400 border-blue-500/20",
@@ -66,6 +71,7 @@ const teamMembers = [
   {
     id: 11,
     name: "David Kross",
+    avatar: "avatar-4.jpg",
     role: "Head of Blockchain",
     tag: "Admin",
     tagColor: "bg-primary/10 text-primary border-primary/20",
@@ -169,14 +175,15 @@ function MemberCard({ member }: { member: any }) {
       whileHover={{ y: -5 }}
       className="glass-panel rounded-[2rem] p-7 flex flex-col gap-6 border-[var(--border-subtle)] shadow-sm relative overflow-hidden group"
     >
-
       <div className="flex items-start justify-between relative z-10">
         <div className="flex gap-5">
           <div className="relative">
-            <img
+            <Image
+              src={`/images/avatar-img/${member.avatar}`}
+              width={100}
+              height={100}
               alt={member.name}
               className="w-16 h-16 rounded-2xl border-2 border-primary/20 object-cover shadow-premium"
-              src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${member.name}`}
             />
             <div
               className={`absolute -bottom-1 -right-1 w-4 h-4 border-2 border-[var(--surface)] rounded-full ${member.status === "online" ? "bg-primary" : "bg-slate-500"}`}
