@@ -88,7 +88,7 @@ export default function JobsSideBar({
               : 0,
         }}
         transition={transitionSettings}
-        className="fixed lg:relative top-0 left-0 h-full glass-panel border-r flex flex-col z-[60] group/sidebar"
+        className="fixed lg:relative top-0 left-0 h-full glass-panel border-r border-slate-500/10 flex flex-col z-[110] bg-[var(--surface)] dark:bg-[#121d18] lg:bg-transparent group/sidebar"
       >
         {/* Toggle Button */}
         <motion.button
