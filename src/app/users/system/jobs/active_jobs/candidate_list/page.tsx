@@ -24,6 +24,11 @@ function JobPipelineDetailPage() {
   const [isSending, setIsSending] = useState(false);
   const [isSent, setIsSent] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // Delete Modal state
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [candidateToDelete, setCandidateToDelete] = useState<any>(null);
 
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -138,6 +143,24 @@ function JobPipelineDetailPage() {
     setAiMatches((prev) => prev.filter((item) => item.name !== candidate.name));
     setIsAdding(false);
   }, []);
+
+  const openDeleteModal = useCallback((candidate: any) => {
+    setCandidateToDelete(candidate);
+    setShowDeleteModal(true);
+  }, []);
+
+  const confirmDelete = useCallback(async () => {
+    if (candidateToDelete) {
+      setIsDeleting(true);
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      setCandidates((prev) =>
+        prev.filter((c: any) => c.name !== candidateToDelete.name),
+      );
+      setIsDeleting(false);
+      setShowDeleteModal(false);
+      setCandidateToDelete(null);
+    }
+  }, [candidateToDelete]);
 
   return (
     <div className="min-h-screen rounded-3xl mesh-gradient no-scrollbar bg-[var(--background)]">
@@ -274,6 +297,82 @@ function JobPipelineDetailPage() {
                   Send Protocol Mail
                 </button>
               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* --- DELETE CONFIRMATION MODAL --- */}
+      <AnimatePresence>
+        {showDeleteModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowDeleteModal(false)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="relative w-full max-w-md glass-panel rounded-3xl p-8 shadow-2xl border-[var(--border-subtle)] overflow-hidden text-center"
+            >
+              {isDeleting ? (
+                <div className="flex flex-col items-center justify-center py-8">
+                  <style>
+                    {`
+                      @keyframes spin-force {
+                        0% { transform: rotate(0deg); }
+                        100% { transform: rotate(360deg); }
+                      }
+                    `}
+                  </style>
+                  <div
+                    style={{ animation: "spin-force 1s linear infinite" }}
+                    className="w-12 h-12 border-4 border-red-500/20 border-t-red-500 rounded-full mb-4"
+                  />
+                  <h3 className="text-lg font-bold text-[var(--text-main)]">
+                    Removing Candidate
+                  </h3>
+                  <p className="text-sm text-[var(--text-muted)] mt-1 animate-pulse">
+                    Updating pipeline data...
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-4 text-red-500 shadow-sm border border-red-500/20">
+                    <span className="material-symbols-outlined text-3xl">
+                      delete_forever
+                    </span>
+                  </div>
+                  <h3 className="text-xl font-bold text-[var(--text-main)] mb-2">
+                    Reject Candidate?
+                  </h3>
+                  <p className="text-sm text-[var(--text-muted)] mb-8 leading-relaxed">
+                    Are you sure you want to remove{" "}
+                    <span className="font-bold text-[var(--text-main)]">
+                      {candidateToDelete?.name}
+                    </span>{" "}
+                    from the pipeline? This action cannot be undone.
+                  </p>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => setShowDeleteModal(false)}
+                      className="flex-1 py-3.5 rounded-xl border border-[var(--border-subtle)] text-sm font-bold text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--surface)] transition-all"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={confirmDelete}
+                      className="flex-1 py-3.5 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm font-bold shadow-lg shadow-red-500/20 transition-all hover:-translate-y-0.5"
+                    >
+                      Yes, Reject
+                    </button>
+                  </div>
+                </>
+              )}
             </motion.div>
           </div>
         )}
@@ -532,6 +631,7 @@ function JobPipelineDetailPage() {
                   key={c.name}
                   candidate={c}
                   onEmailClick={openEmailModal}
+                  onDeleteClick={openDeleteModal}
                 />
               ))}
             </motion.div>
@@ -564,81 +664,92 @@ export default function JobPipelinePage() {
   );
 }
 
-const CandidateCard = memo(({ candidate, onEmailClick }: any) => {
-  const router = useRouter();
-  return (
-    <motion.div
-      variants={itemVariants}
-      whileHover={{ y: -3 }}
-      className={`glass-panel rounded-[2rem] p-7 transition-all shadow-sm border-[var(--border-subtle)] ${candidate.isUnicorn ? "border-primary/30 ring-1 ring-primary/10" : ""}`}
-    >
-      <div className="flex justify-between items-start mb-6">
-        <div className="flex items-center gap-5">
-          <div className="w-16 h-16 rounded-2xl border border-[var(--border-subtle)] p-0.5 overflow-hidden bg-[var(--surface)] shadow-sm">
-            <Image
-              src={`/images/avatar-img/${candidate.avatar}`}
-              width={100}
-              height={100}
-              alt={candidate.name}
-              className="w-full h-full object-cover rounded-[0.8rem]"
-            />
-          </div>
-          <div>
-            <h3 className="font-bold text-lg text-[var(--text-main)] tracking-tight">
-              {candidate.name}
-            </h3>
-            <p className="text-xs font-medium text-[var(--text-muted)] mt-0.5">
-              {candidate.info}
-            </p>
-            <div className="flex gap-3 mt-3">
-              <span className="px-2.5 py-0.5 rounded-lg bg-primary/10 text-primary text-[10px] font-bold border border-primary/10">
-                {candidate.status}
-              </span>
-              <span className="text-[var(--text-muted)] text-[10px] font-medium self-center opacity-60">
-                Updated {candidate.updated}
-              </span>
+const CandidateCard = memo(
+  ({ candidate, onEmailClick, onDeleteClick }: any) => {
+    const router = useRouter();
+    return (
+      <motion.div
+        variants={itemVariants}
+        whileHover={{ y: -3 }}
+        className={`glass-panel rounded-[2rem] p-7 transition-all shadow-sm border-[var(--border-subtle)] ${candidate.isUnicorn ? "border-primary/30 ring-1 ring-primary/10" : ""}`}
+      >
+        <div className="flex justify-between items-start mb-6">
+          <div className="flex items-center gap-5">
+            <div className="w-16 h-16 rounded-2xl border border-[var(--border-subtle)] p-0.5 overflow-hidden bg-[var(--surface)] shadow-sm">
+              <Image
+                src={`/images/avatar-img/${candidate.avatar}`}
+                width={100}
+                height={100}
+                alt={candidate.name}
+                className="w-full h-full object-cover rounded-[0.8rem]"
+              />
+            </div>
+            <div>
+              <h3 className="font-bold text-lg text-[var(--text-main)] tracking-tight">
+                {candidate.name}
+              </h3>
+              <p className="text-xs font-medium text-[var(--text-muted)] mt-0.5">
+                {candidate.info}
+              </p>
+              <div className="flex gap-3 mt-3">
+                <span className="px-2.5 py-0.5 rounded-lg bg-primary/10 text-primary text-[10px] font-bold border border-primary/10">
+                  {candidate.status}
+                </span>
+                <span className="text-[var(--text-muted)] text-[10px] font-medium self-center opacity-60">
+                  Updated {candidate.updated}
+                </span>
+              </div>
             </div>
           </div>
         </div>
-      </div>
-      <div className="mb-8">
-        <p className="text-[10px] text-[var(--text-muted)] font-bold uppercase tracking-tight mb-3 opacity-60">
-          Technical Match
-        </p>
-        <div className="flex flex-wrap gap-2">
-          {candidate.skills.map((s: string, idx: number) => (
-            <span
-              key={idx}
-              className="px-3 py-1 rounded-lg bg-[var(--input-bg)] text-[var(--text-main)] text-xs font-semibold border border-[var(--border-subtle)] hover:border-primary/40 transition-colors"
-            >
-              {s}
-            </span>
-          ))}
+        <div className="mb-8">
+          <p className="text-[10px] text-[var(--text-muted)] font-bold uppercase tracking-tight mb-3 opacity-60">
+            Technical Match
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {candidate.skills.map((s: string, idx: number) => (
+              <span
+                key={idx}
+                className="px-3 py-1 rounded-lg bg-[var(--input-bg)] text-[var(--text-main)] text-xs font-semibold border border-[var(--border-subtle)] hover:border-primary/40 transition-colors"
+              >
+                {s}
+              </span>
+            ))}
+          </div>
         </div>
-      </div>
-      <div className="flex items-center gap-3 pt-6 border-t border-[var(--border-subtle)]">
-        <button
-          className="flex-grow py-3 rounded-xl active-tab-gradient text-white text-xs font-bold shadow-glow hover:translate-y-[-1px] transition-all"
-          onClick={() => {
-            router.push(
-              candidate.isUnicorn
-                ? `/users/system/jobs/active_jobs/candidate_list/${candidate.name.toLowerCase().replace(" ", "-")}`
-                : `/users/system/jobs/active_jobs/candidate_list/${candidate.name.toLowerCase().replace(" ", "-")}`,
-            );
-          }}
-        >
-          {candidate.isUnicorn ? "Manage Offer" : "Move Stage"}
-        </button>
-        <button
-          onClick={() => onEmailClick(candidate)}
-          className="p-2.5 rounded-xl border border-[var(--border-subtle)] text-[var(--text-muted)] hover:text-primary hover:border-primary/50 transition-all bg-[var(--surface)] shadow-sm"
-        >
-          <span className="material-symbols-outlined text-xl">chat_bubble</span>
-        </button>
-      </div>
-    </motion.div>
-  );
-});
+        <div className="flex items-center gap-3 pt-6 border-t border-[var(--border-subtle)]">
+          <button
+            className="flex-grow py-3 rounded-xl active-tab-gradient text-white text-xs font-bold shadow-glow hover:translate-y-[-1px] transition-all"
+            onClick={() => {
+              router.push(
+                candidate.isUnicorn
+                  ? `/users/system/jobs/active_jobs/candidate_list/${candidate.name.toLowerCase().replace(" ", "-")}`
+                  : `/users/system/jobs/active_jobs/candidate_list/${candidate.name.toLowerCase().replace(" ", "-")}`,
+              );
+            }}
+          >
+            {candidate.isUnicorn ? "Manage Offer" : "Move Stage"}
+          </button>
+          <button
+            onClick={() => onEmailClick(candidate)}
+            className="p-2.5 rounded-xl border border-[var(--border-subtle)] text-[var(--text-muted)] hover:text-primary hover:border-primary/50 transition-all bg-[var(--surface)] shadow-sm"
+          >
+            <span className="material-symbols-outlined text-xl">
+              chat_bubble
+            </span>
+          </button>
+          <button
+            onClick={() => onDeleteClick(candidate)}
+            className="p-2.5 rounded-xl border border-[var(--border-subtle)] text-[var(--text-muted)] hover:text-red-500 hover:border-red-500/50 hover:bg-red-500/10 transition-all bg-[var(--surface)] shadow-sm"
+            title="Reject Candidate"
+          >
+            <span className="material-symbols-outlined text-xl">delete</span>
+          </button>
+        </div>
+      </motion.div>
+    );
+  },
+);
 CandidateCard.displayName = "CandidateCard";
 
 function PaginationButton({ label, icon, active, disabled }: any) {
