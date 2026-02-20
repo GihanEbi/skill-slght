@@ -465,7 +465,7 @@ function JobPipelineDetailPage() {
                           handleAddToCandidates(c);
                         }}
                       >
-                        Insert to pipeline
+                        Add to Pipeline
                       </button>
                     </div>
                   ))}
@@ -480,22 +480,34 @@ function JobPipelineDetailPage() {
           <h2 className="text-xl font-bold text-[var(--text-main)] tracking-tight">
             Candidate Pipeline
           </h2>
-          <div className="flex items-center gap-3 w-full md:w-auto">
-            <div className="relative flex-grow md:flex-grow-0 group">
-              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] text-lg opacity-50">
-                search
-              </span>
-              <input
-                className="premium-input pl-10 pr-4 py-2.5 rounded-xl text-[var(--text-main)] font-semibold text-sm w-full md:w-64"
-                placeholder="Find a candidate..."
-                type="text"
-              />
+          <div className="flex flex-col md:flex-row items-center gap-3 w-full md:w-auto">
+            <div className="flex items-center gap-3">
+              <div className="relative flex-grow md:flex-grow-0 group">
+                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] text-lg opacity-50">
+                  search
+                </span>
+                <input
+                  className="premium-input pl-10 pr-4 py-2.5 rounded-xl text-[var(--text-main)] font-semibold text-sm w-full md:w-64"
+                  placeholder="Find a candidate..."
+                  type="text"
+                />
+              </div>
+              <button className="flex items-center gap-2 px-4 py-2.5 bg-[var(--surface)] border border-[var(--border-subtle)] rounded-xl text-xs font-bold text-[var(--text-muted)] hover:text-primary transition-all shadow-sm">
+                <span className="material-symbols-outlined text-lg">
+                  filter_list
+                </span>
+                Refine
+              </button>
             </div>
-            <button className="flex items-center gap-2 px-4 py-2.5 bg-[var(--surface)] border border-[var(--border-subtle)] rounded-xl text-xs font-bold text-[var(--text-muted)] hover:text-primary transition-all shadow-sm">
-              <span className="material-symbols-outlined text-lg">
-                filter_list
-              </span>
-              Refine
+
+            <button
+              onClick={() => router.push("/users/system/candidates")}
+              className="w-full sm:w-auto active-tab-gradient text-white font-semibold px-6 py-3.5 rounded-2xl flex items-center justify-center gap-2 shadow-premium text-sm"
+            >
+              <span className="material-symbols-outlined text-xl">
+                add_circle
+              </span>{" "}
+              Create Job
             </button>
           </div>
         </div>
