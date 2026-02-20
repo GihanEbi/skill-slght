@@ -1,5 +1,5 @@
 "use client";
-import React, { Suspense, useState } from "react";
+import React, { Suspense, useState, useCallback, memo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -23,6 +23,7 @@ function JobPipelineDetailPage() {
   // Loader states for Email
   const [isSending, setIsSending] = useState(false);
   const [isSent, setIsSent] = useState(false);
+  const [isAdding, setIsAdding] = useState(false);
 
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -36,7 +37,7 @@ function JobPipelineDetailPage() {
     { label: "Offer", value: "2", subtitle: "Final Stage" },
   ];
 
-  const candidates = [
+  const [candidates, setCandidates] = useState([
     {
       name: "Alex Rivers",
       info: "Ex-Consensys • 8 yrs exp.",
@@ -70,9 +71,9 @@ function JobPipelineDetailPage() {
       skills: ["Math", "Privacy"],
       avatar: "gihan.jpeg",
     },
-  ];
+  ]);
 
-  const aiMatches = [
+  const [aiMatches, setAiMatches] = useState([
     {
       name: "Marcus Thorne",
       score: 98,
@@ -80,6 +81,7 @@ function JobPipelineDetailPage() {
       strength: "Rust / EVM Architecture",
       bio: "High contribution to Ethereum core repos. Expert in low-level protocol optimization.",
       avatar: "gihan.jpeg",
+      skills: ["Math", "Privacy"],
     },
     {
       name: "Julian Voss",
@@ -88,6 +90,7 @@ function JobPipelineDetailPage() {
       strength: "Cryptography / Zero-Knowledge",
       bio: "Lead author on several ZK-Rollup implementations. PhD in Applied Math.",
       avatar: "avatar-2.jpg",
+      skills: ["Math", "Privacy"],
     },
     {
       name: "Lina Wert",
@@ -96,15 +99,16 @@ function JobPipelineDetailPage() {
       strength: "Full-Stack Web3 / Go",
       bio: "Built scalable indexing protocols. Strong focus on decentralized data availability.",
       avatar: "avatar-4.jpg",
+      skills: ["Math", "Privacy"],
     },
-  ];
+  ]);
 
-  const openEmailModal = (candidate: any) => {
+  const openEmailModal = useCallback((candidate: any) => {
     setSelectedCandidate(candidate);
     setIsSent(false);
     setIsSending(false);
     setShowEmailModal(true);
-  };
+  }, []);
 
   const handleSendEmail = async () => {
     setIsSending(true);
@@ -117,6 +121,23 @@ function JobPipelineDetailPage() {
       setShowEmailModal(false);
     }, 1200);
   };
+
+  // function for remove the selected object from AI match and insert it to candidates
+  const handleAddToCandidates = useCallback(async (candidate: any) => {
+    setIsAdding(true);
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    const tempCandidate = {
+      name: candidate.name,
+      info: candidate.bio,
+      status: "Reviewing",
+      updated: "Just now",
+      skills: candidate.skills,
+      avatar: candidate.avatar,
+    };
+    setCandidates((prev) => [...prev, tempCandidate]);
+    setAiMatches((prev) => prev.filter((item) => item.name !== candidate.name));
+    setIsAdding(false);
+  }, []);
 
   return (
     <div className="min-h-screen rounded-3xl mesh-gradient no-scrollbar bg-[var(--background)]">
@@ -438,8 +459,13 @@ function JobPipelineDetailPage() {
                           "{c.bio}"
                         </p>
                       </div>
-                      <button className="w-full mt-6 py-2.5 rounded-xl border border-primary/20 text-primary text-xs font-bold hover:bg-primary hover:text-white transition-all">
-                        Initialize Interview
+                      <button
+                        className="w-full mt-6 py-2.5 rounded-xl border border-primary/20 text-primary text-xs font-bold hover:bg-primary hover:text-white transition-all"
+                        onClick={() => {
+                          handleAddToCandidates(c);
+                        }}
+                      >
+                        Insert to pipeline
                       </button>
                     </div>
                   ))}
@@ -474,20 +500,31 @@ function JobPipelineDetailPage() {
           </div>
         </div>
 
-        <motion.div
-          variants={containerVariants}
-          initial="hidden"
-          animate="visible"
-          className="grid grid-cols-1 md:grid-cols-2 gap-6"
-        >
-          {candidates.map((c, i) => (
-            <CandidateCard
-              key={i}
-              candidate={c}
-              onEmailClick={() => openEmailModal(c)}
-            />
-          ))}
-        </motion.div>
+        <div className="min-h-[400px]">
+          {isAdding ? (
+            <div className="flex flex-col items-center justify-center h-[400px] animate-in fade-in zoom-in duration-300">
+              <div className="w-16 h-16 border-4 border-primary/20 border-t-primary rounded-full animate-spin mb-4" />
+              <p className="text-[var(--text-muted)] font-medium animate-pulse">
+                Syncing Candidate Data...
+              </p>
+            </div>
+          ) : (
+            <motion.div
+              variants={containerVariants}
+              initial="hidden"
+              animate="visible"
+              className="grid grid-cols-1 md:grid-cols-2 gap-6"
+            >
+              {candidates.map((c: any, i) => (
+                <CandidateCard
+                  key={c.name}
+                  candidate={c}
+                  onEmailClick={openEmailModal}
+                />
+              ))}
+            </motion.div>
+          )}
+        </div>
 
         <footer className="mt-16 flex justify-center">
           <div className="flex gap-2">
@@ -515,7 +552,7 @@ export default function JobPipelinePage() {
   );
 }
 
-function CandidateCard({ candidate, onEmailClick }: any) {
+const CandidateCard = memo(({ candidate, onEmailClick }: any) => {
   const router = useRouter();
   return (
     <motion.div
@@ -581,7 +618,7 @@ function CandidateCard({ candidate, onEmailClick }: any) {
           {candidate.isUnicorn ? "Manage Offer" : "Move Stage"}
         </button>
         <button
-          onClick={onEmailClick}
+          onClick={() => onEmailClick(candidate)}
           className="p-2.5 rounded-xl border border-[var(--border-subtle)] text-[var(--text-muted)] hover:text-primary hover:border-primary/50 transition-all bg-[var(--surface)] shadow-sm"
         >
           <span className="material-symbols-outlined text-xl">chat_bubble</span>
@@ -589,7 +626,8 @@ function CandidateCard({ candidate, onEmailClick }: any) {
       </div>
     </motion.div>
   );
-}
+});
+CandidateCard.displayName = "CandidateCard";
 
 function PaginationButton({ label, icon, active, disabled }: any) {
   return (
