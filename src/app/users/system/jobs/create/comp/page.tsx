@@ -1,7 +1,13 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
+import {
+  LS_KEY,
+  fetchCurrencies,
+  fetchFinancialAiSuggestions,
+} from "@/services/jobService";
+import { createBlankJob } from "@/models/Job";
 
 export default function CompensationPage() {
   const router = useRouter();
@@ -12,6 +18,9 @@ export default function CompensationPage() {
   const [maxSalary, setMaxSalary] = useState(180000);
   const [financialTags, setFinancialTags] = useState<string[]>([]);
   const [newTagInput, setNewTagInput] = useState("");
+
+  const [currencies, setCurrencies] = useState<string[]>([]);
+  const [aiSuggestions, setAiSuggestions] = useState<string[]>([]);
 
   const [showAiModal, setShowAiModal] = useState(false);
   const [isAiGenerating, setIsAiGenerating] = useState(false);
@@ -24,14 +33,62 @@ export default function CompensationPage() {
     equity: true,
   });
 
+  // ── Initial Data Fetching ──────────────────────────────────────────────
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const [cList, sList] = await Promise.all([
+          fetchCurrencies(),
+          fetchFinancialAiSuggestions(),
+        ]);
+        setCurrencies(cList);
+        setAiSuggestions(sList);
+      } catch (e) {
+        console.error("Failed to load comp constants", e);
+      }
+    };
+    loadData();
+  }, []);
+
+  // ── Hydration ──────────────────────────────────────────────────────────
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(LS_KEY);
+      if (raw) {
+        const job = JSON.parse(raw);
+        if (job.compensation) {
+          const c = job.compensation;
+          setCurrency(c.currency || "USD");
+          setMinSalary(c.minSalary || 120000);
+          setMaxSalary(c.maxSalary || 180000);
+          setFinancialTags(c.financialAddOns || []);
+          setToggles({
+            bonus: !!c.bonusEquity?.performanceBonus,
+            signing: !!c.bonusEquity?.signingBonus,
+            equity: !!c.bonusEquity?.stockOptions,
+          });
+        }
+      }
+    } catch (e) {
+      console.error("Comp hydration failed", e);
+    }
+  }, []);
+
+  const buildCompPayload = () => {
+    return {
+      currency: currency as any,
+      minSalary,
+      maxSalary,
+      bonusEquity: {
+        performanceBonus: toggles.bonus,
+        signingBonus: toggles.signing,
+        stockOptions: toggles.equity,
+      },
+      financialAddOns: financialTags,
+    };
+  };
+
   // --- Logic ---
-  const aiFinancialSuggestions = [
-    "401k Matching (up to 4%)",
-    "Relocation Assistance",
-    "Performance-based Tokens",
-    "Quarterly Profit Sharing",
-    "Referral Bonus Program",
-  ];
 
   // Currency logic: 1 USD = 300 LKR
   const handleCurrencyChange = (newCurr: string) => {
@@ -73,8 +130,36 @@ export default function CompensationPage() {
   const handleNext = async () => {
     setIsProcessing(true);
     await new Promise((resolve) => setTimeout(resolve, 2000));
+
+    // Save to Local Storage
+    try {
+      const existing = localStorage.getItem(LS_KEY);
+      const data = existing ? JSON.parse(existing) : {};
+      data.compensation = buildCompPayload();
+      localStorage.setItem(LS_KEY, JSON.stringify(data));
+    } catch (e) {
+      console.error("Failed to save compensation", e);
+    }
+
     setIsSaved(true);
     setTimeout(() => router.push("/users/system/jobs/create/preview"), 1000);
+  };
+
+  const handleSaveDraft = async () => {
+    setIsProcessing(true);
+    await new Promise((resolve) => setTimeout(resolve, 1400));
+
+    try {
+      const existing = localStorage.getItem(LS_KEY);
+      const data = existing ? JSON.parse(existing) : {};
+      data.compensation = buildCompPayload();
+      localStorage.setItem(LS_KEY, JSON.stringify(data));
+    } catch (e) {
+      console.error("Failed to save draft", e);
+    }
+
+    setIsSaved(true);
+    setTimeout(() => router.push("/users/system/jobs/active_jobs"), 800);
   };
 
   return (
@@ -167,7 +252,7 @@ export default function CompensationPage() {
                 Add market-standard incentives.
               </p>
               <div className="space-y-3">
-                {aiFinancialSuggestions.map((s) => (
+                {aiSuggestions.map((s: string) => (
                   <button
                     key={s}
                     onClick={() => {
@@ -537,7 +622,10 @@ export default function CompensationPage() {
             <span className="material-symbols-outlined">arrow_back</span>Back
           </button>
           <div className="flex gap-4">
-            <button className="hidden sm:block px-6 py-2.5 rounded-xl border border-[var(--border-subtle)] text-[var(--text-muted)] font-bold text-sm">
+            <button
+              onClick={handleSaveDraft}
+              className="hidden sm:block px-6 py-2.5 rounded-xl border border-[var(--border-subtle)] text-[var(--text-muted)] font-bold text-sm"
+            >
               Save Draft
             </button>
             <button

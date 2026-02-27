@@ -1,11 +1,20 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
+import {
+  LS_KEY,
+  ACTIVE_JOBS_KEY,
+  fetchHiringManagers,
+  fetchTargetPlatforms,
+} from "@/services/jobService";
+import { Job } from "@/types/job_types";
+import { createBlankJob } from "@/models/Job";
 
 type FlowState = "idle" | "publishing" | "success";
 
 export default function PreviewPage() {
+  const router = useRouter();
   const [viewMode, setViewMode] = useState<"desktop" | "mobile">("desktop");
   const [showPublishModal, setShowPublishModal] = useState(false);
   const [flowState, setFlowState] = useState<FlowState>("idle");
@@ -16,21 +25,146 @@ export default function PreviewPage() {
   const [platforms, setPlatforms] = useState<string[]>([]);
   const [saveAsTemplate, setSaveAsTemplate] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [selectedManager, setSelectedManager] = useState(
-    "Alex Rivera (Product Lead)",
-  );
+  const [selectedManager, setSelectedManager] = useState("");
 
-  const router = useRouter();
-  const managers = [
-    "Alex Rivera (Product Lead)",
-    "Sarah Chen (Engineering Manager)",
-    "James Wilson (Talent Acquisition)",
-  ];
+  const [jobData, setJobData] = useState<Job>(createBlankJob());
+  const [managers, setManagers] = useState<string[]>([]);
+  const [availablePlatforms, setAvailablePlatforms] = useState<string[]>([]);
+
+  // ── Initial Data Fetching ──────────────────────────────────────────────
+  useEffect(() => {
+    const loadConstants = async () => {
+      try {
+        const [mList, pList] = await Promise.all([
+          fetchHiringManagers(),
+          fetchTargetPlatforms(),
+        ]);
+        setManagers(mList);
+        setAvailablePlatforms(pList);
+        if (mList.length > 0 && !selectedManager) {
+          setSelectedManager(mList[0]);
+        }
+      } catch (e) {
+        console.error("Failed to load preview constants", e);
+      }
+    };
+    loadConstants();
+  }, []);
+
+  // ── Auto-Mobile View Detection ──────────────────────────────────────────
+  useEffect(() => {
+    const mql = window.matchMedia("(max-width: 768px)");
+    const handler = (e: MediaQueryListEvent | MediaQueryList) => {
+      if (e.matches) setViewMode("mobile");
+    };
+    mql.addEventListener("change", handler);
+    handler(mql);
+    return () => mql.removeEventListener("change", handler);
+  }, []);
+
+  // ── Hydration ────────────────────────────────────────────────────────────
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(LS_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        setJobData(parsed);
+
+        // Sync publish settings state if they already exist
+        if (parsed.publishSettings) {
+          const ps = parsed.publishSettings;
+          setHiringType(
+            ps.protocol === "Internal Only" ? "internal" : "external",
+          );
+          setPlatforms(ps.platforms || []);
+          setSelectedManager(ps.hiringManager || "");
+          setSaveAsTemplate(ps.saveAsTemplate || false);
+        }
+      }
+    } catch (e) {
+      console.error("Preview hydration failed", e);
+    }
+  }, []);
 
   const handleStartPublish = () => {
+    // 1. Merge final settings into jobData
+    const finalJob: Job = {
+      ...jobData,
+      category: hiringType === "internal" ? "Internal" : "External",
+      publishSettings: {
+        protocol:
+          hiringType === "internal" ? "Internal Only" : "External Public",
+        platforms: platforms as any,
+        hiringManager: selectedManager,
+        saveAsTemplate,
+      },
+      status: "Active", // Final status
+      updatedAt: new Date().toISOString(),
+    };
+
+    // 2. Persist to Active Jobs Array
+    try {
+      const activeRaw = localStorage.getItem(ACTIVE_JOBS_KEY);
+      const activeJobs = activeRaw ? JSON.parse(activeRaw) : [];
+
+      if (Array.isArray(activeJobs)) {
+        activeJobs.push(finalJob);
+        localStorage.setItem(ACTIVE_JOBS_KEY, JSON.stringify(activeJobs));
+      } else {
+        localStorage.setItem(ACTIVE_JOBS_KEY, JSON.stringify([finalJob]));
+      }
+
+      // 3. Clear the creation draft
+      localStorage.removeItem(LS_KEY);
+    } catch (e) {
+      console.error("Failed to publish job", e);
+    }
+
+    // 4. Trigger Animation
     setShowPublishModal(false);
     setFlowState("publishing");
-    setTimeout(() => setFlowState("success"), 2000);
+    setTimeout(() => setFlowState("success"), 2500);
+  };
+
+  const handleSaveDraft = () => {
+    // 1. Merge final settings but keep as draft
+    const finalJob: Job = {
+      ...jobData,
+      category: hiringType === "internal" ? "Internal" : "External",
+      publishSettings: {
+        protocol:
+          hiringType === "internal" ? "Internal Only" : "External Public",
+        platforms: platforms as any,
+        hiringManager: selectedManager,
+        saveAsTemplate,
+      },
+      status: "Draft",
+      updatedAt: new Date().toISOString(),
+    };
+
+    // 2. Persist to Active Jobs Array
+    try {
+      const activeRaw = localStorage.getItem(ACTIVE_JOBS_KEY);
+      const activeJobs = activeRaw ? JSON.parse(activeRaw) : [];
+
+      if (Array.isArray(activeJobs)) {
+        activeJobs.push(finalJob);
+        localStorage.setItem(ACTIVE_JOBS_KEY, JSON.stringify(activeJobs));
+      } else {
+        localStorage.setItem(ACTIVE_JOBS_KEY, JSON.stringify([finalJob]));
+      }
+
+      // 3. Clear the creation draft
+      localStorage.removeItem(LS_KEY);
+    } catch (e) {
+      console.error("Failed to save draft", e);
+    }
+
+    setFlowState("publishing");
+    // Simulate a shorter save time for draft
+    setTimeout(() => {
+      router.push("/users/system/jobs/active_jobs");
+    }, 1500);
   };
 
   const togglePlatform = (p: string) => {
@@ -94,7 +228,7 @@ export default function PreviewPage() {
                           Target Platforms
                         </label>
                         <div className="flex flex-wrap gap-2">
-                          {["LinkedIn", "Indeed", "Glassdoor"].map((p) => (
+                          {availablePlatforms.map((p) => (
                             <button
                               key={p}
                               onClick={() => togglePlatform(p)}
@@ -293,7 +427,7 @@ export default function PreviewPage() {
                     Final visual validation before publishing.
                   </p>
                 </div>
-                <div className="flex bg-[var(--input-bg)] p-1.5 rounded-2xl border border-[var(--border-subtle)] self-start shadow-sm">
+                <div className="hidden md:flex bg-[var(--input-bg)] p-1.5 rounded-2xl border border-[var(--border-subtle)] self-start shadow-sm">
                   <button
                     onClick={() => setViewMode("desktop")}
                     className={`px-5 py-2 rounded-xl text-xs font-bold transition-all ${viewMode === "desktop" ? "bg-primary text-white shadow-glow" : "text-[var(--text-muted)] hover:text-primary"}`}
@@ -311,7 +445,9 @@ export default function PreviewPage() {
 
               {/* BROWSER MOCKUP */}
               <motion.div
-                animate={{ width: viewMode === "desktop" ? "100%" : "375px" }}
+                animate={{
+                  width: viewMode === "desktop" ? "100%" : "min(100%, 375px)",
+                }}
                 className="mx-auto rounded-[2rem] overflow-hidden border border-[var(--border-subtle)] bg-[#0a0a0c] shadow-2xl transition-all duration-500"
               >
                 <div className="bg-white/5 px-6 py-4 flex items-center gap-3 border-b border-white/5">
@@ -329,28 +465,29 @@ export default function PreviewPage() {
                   <div className="space-y-6">
                     <div className="flex flex-wrap gap-2.5">
                       <span className="px-3 py-1 rounded-lg bg-primary/10 text-primary text-[10px] font-bold tracking-tight border border-primary/20">
-                        Full-Time
+                        {hiringType === "internal" ? "Internal" : "External"}
                       </span>
                       <span className="px-3 py-1 rounded-lg bg-emerald-500/10 text-emerald-500 text-[10px] font-bold tracking-tight border border-emerald-500/20">
-                        Engineering
+                        {jobData.department || "General"}
                       </span>
                     </div>
                     <h2 className="text-4xl md:text-5xl font-bold text-white leading-[1.1] tracking-tight">
-                      Senior Blockchain Engineer, <br />
-                      <span className="text-primary">EVM Specialist</span>
+                      {jobData.title || "Untitled Position"}
                     </h2>
                     <div className="flex flex-wrap gap-8 text-slate-400 text-sm font-medium">
                       <div className="flex items-center gap-2">
                         <span className="material-symbols-outlined text-primary text-xl">
                           location_on
                         </span>
-                        Remote, Global
+                        {jobData.location || "Remote"} ({jobData.locationType})
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="material-symbols-outlined text-primary text-xl">
                           payments
                         </span>
-                        $145k — $190k • Equity
+                        {jobData.compensation.currency === "USD" ? "$" : "LKR "}
+                        {(jobData.compensation.minSalary / 1000).toFixed(0)}k —{" "}
+                        {(jobData.compensation.maxSalary / 1000).toFixed(0)}k
                       </div>
                     </div>
                   </div>
@@ -363,44 +500,62 @@ export default function PreviewPage() {
                         <h3 className="text-lg font-bold text-white mb-3">
                           Mission Overview
                         </h3>
-                        <p>
-                          Join our core engineering cell to optimize low-level
-                          EVM protocols and scale decentralized intelligence
-                          nodes across global networks.
-                        </p>
+                        <div
+                          className="prose prose-invert max-w-none text-slate-400"
+                          dangerouslySetInnerHTML={{
+                            __html:
+                              jobData.description || "No description provided.",
+                          }}
+                        />
                       </div>
-                      <div>
-                        <h3 className="text-lg font-bold text-white mb-3">
-                          Protocol Expertise
-                        </h3>
-                        <ul className="space-y-3 list-disc pl-5 marker:text-primary">
-                          <li>Advanced proficiency in Rust and Solidity.</li>
-                          <li>
-                            Deep understanding of Zero-Knowledge proof
-                            implementation.
-                          </li>
-                          <li>Experience architecting L2 scaling solutions.</li>
-                        </ul>
-                      </div>
+                      {jobData.skills.length > 0 && (
+                        <div>
+                          <h3 className="text-lg font-bold text-white mb-3">
+                            Expertise
+                          </h3>
+                          <ul className="space-y-3 list-disc pl-5 marker:text-primary">
+                            {jobData.skills.map((s, i) => (
+                              <li key={i}>{s}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                     </div>
                     <div className="space-y-8">
-                      <SidebarPreviewStat
-                        title="Key Expertise"
-                        items={["Rust", "Solidity", "ZK-Rollups"]}
-                      />
+                      {jobData.skills.length > 0 && (
+                        <SidebarPreviewStat
+                          title="Key Expertise"
+                          items={jobData.skills.slice(0, 4)}
+                        />
+                      )}
                       <div className="grid grid-cols-1 gap-3">
-                        <BenefitBadgePreview
-                          icon="health_and_safety"
-                          label="Global Health Insurance"
-                        />
-                        <BenefitBadgePreview
-                          icon="flight_takeoff"
-                          label="Unlimited Paid Leave"
-                        />
-                        <BenefitBadgePreview
-                          icon="savings"
-                          label="Equity & Token Grants"
-                        />
+                        {jobData.benefits.standard.healthInsurance && (
+                          <BenefitBadgePreview
+                            icon="health_and_safety"
+                            label="Global Health Insurance"
+                          />
+                        )}
+                        {jobData.benefits.standard.unlimitedPTO && (
+                          <BenefitBadgePreview
+                            icon="flight_takeoff"
+                            label="Unlimited Paid Leave"
+                          />
+                        )}
+                        {jobData.compensation.bonusEquity.stockOptions && (
+                          <BenefitBadgePreview
+                            icon="savings"
+                            label="Equity & Token Grants"
+                          />
+                        )}
+                        {jobData.benefits.customPerks
+                          .slice(0, 2)
+                          .map((perk, i) => (
+                            <BenefitBadgePreview
+                              key={i}
+                              icon="star"
+                              label={perk}
+                            />
+                          ))}
                       </div>
                     </div>
                   </div>
@@ -461,15 +616,23 @@ export default function PreviewPage() {
             </span>
             Back
           </button>
-          <button
-            onClick={() => setShowPublishModal(true)}
-            className="active-tab-gradient px-12 py-3 rounded-xl text-white font-bold text-sm shadow-premium flex items-center gap-3 hover:translate-y-[-1px] transition-all"
-          >
-            Publish Job Post{" "}
-            <span className="material-symbols-outlined text-lg">
-              rocket_launch
-            </span>
-          </button>
+          <div className="flex gap-4">
+            <button
+              onClick={handleSaveDraft}
+              className="hidden sm:block px-6 py-2.5 rounded-xl border border-[var(--border-subtle)] text-[var(--text-muted)] font-bold text-sm"
+            >
+              Save Draft
+            </button>
+            <button
+              onClick={() => setShowPublishModal(true)}
+              className="active-tab-gradient px-12 py-3 rounded-xl text-white font-bold text-sm shadow-premium flex items-center gap-3 hover:translate-y-[-1px] transition-all"
+            >
+              Publish Job Post{" "}
+              <span className="material-symbols-outlined text-lg">
+                rocket_launch
+              </span>
+            </button>
+          </div>
         </div>
       </footer>
     </div>

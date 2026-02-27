@@ -1,46 +1,128 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
-
+import {
+  fetchStandardBenefitOptions,
+  fetchWorkLifeOptions,
+  fetchAiPerkSuggestions,
+  BenefitOption,
+  WorkLifeOption,
+  LS_KEY,
+} from "@/services/jobService";
 export default function BenefitsPage() {
-  const [activeBenefits, setActiveBenefits] = useState(["Health Insurance"]);
+  const [activeBenefits, setActiveBenefits] = useState<string[]>([]);
   const [customPerks, setCustomPerks] = useState<string[]>([]);
   const [newPerkInput, setNewPerkInput] = useState("");
   const [showAiModal, setShowAiModal] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
-
   const [isAiGenerating, setIsAiGenerating] = useState(false);
 
-  const handleAiGenerateClick = async () => {
-    setIsAiGenerating(true);
-    // Simulate AI "Thinking" time
-    await new Promise((resolve) => setTimeout(resolve, 1800));
-    setIsAiGenerating(false);
-    setShowAiModal(true);
-  };
-
-  const [toggles, setToggles] = useState({
-    flexible: true,
-    remote: true,
+  const [toggles, setToggles] = useState<Record<string, boolean>>({
+    flexible: false,
+    remote: false,
     mental: false,
   });
+
+  const [availableStandardBenefits, setAvailableStandardBenefits] = useState<
+    BenefitOption[]
+  >([]);
+  const [availableWorkLifeOptions, setAvailableWorkLifeOptions] = useState<
+    WorkLifeOption[]
+  >([]);
+  const [availableAiSuggestions, setAvailableAiSuggestions] = useState<
+    string[]
+  >([]);
+  const [isDataLoading, setIsDataLoading] = useState(true);
+
   const router = useRouter();
 
-  // AI Recommendations Data
-  const aiSuggestions = [
-    "Token Allocation (0.1% - 0.5%)",
-    "Home Office Stipend ($1.5k)",
-    "Learning & Development Budget",
-    "Gym & Wellness Membership",
-    "Annual Company Retreat",
-  ];
+  // ── Local Storage Hydration ───────────────────────────────────────
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(LS_KEY);
+      if (raw) {
+        const job = JSON.parse(raw);
+        if (job.benefits) {
+          const b = job.benefits;
+          const standardList: string[] = [];
+          if (b.standard.healthInsurance) standardList.push("Health Insurance");
+          if (b.standard.unlimitedPTO) standardList.push("Paid Time Off");
+          if (b.standard.matching401k) standardList.push("401k Matching");
+          if (b.standard.parentalLeave) standardList.push("Parental Leave");
+
+          setActiveBenefits(standardList);
+          setCustomPerks(b.customPerks || []);
+          setToggles({
+            flexible: !!b.workLife.flexibleHours,
+            remote: !!b.workLife.remoteFirst,
+            mental: !!b.workLife.mentalHealthDays,
+          });
+        }
+      }
+    } catch (e) {
+      console.error("Hydration failed", e);
+    }
+  }, []);
+
+  const buildBenefitsPayload = () => {
+    return {
+      standard: {
+        healthInsurance: activeBenefits.includes("Health Insurance"),
+        unlimitedPTO: activeBenefits.includes("Paid Time Off"),
+        matching401k: activeBenefits.includes("401k Matching"),
+        parentalLeave: activeBenefits.includes("Parental Leave"),
+      },
+      workLife: {
+        flexibleHours: toggles.flexible,
+        remoteFirst: toggles.remote,
+        mentalHealthDays: toggles.mental,
+      },
+      customPerks,
+    };
+  };
+
+  const fetchConstants = async () => {
+    try {
+      const [stds, wls] = await Promise.all([
+        fetchStandardBenefitOptions(),
+        fetchWorkLifeOptions(),
+      ]);
+      setAvailableStandardBenefits(stds);
+      setAvailableWorkLifeOptions(wls);
+    } catch (err) {
+      console.error("Failed to load constant data:", err);
+    } finally {
+      setIsDataLoading(false);
+    }
+  };
+
+  const fetchAiRecommendations = async () => {
+    setIsAiGenerating(true);
+    try {
+      const suggestions = await fetchAiPerkSuggestions();
+      setAvailableAiSuggestions(suggestions);
+      setShowAiModal(true);
+    } catch (err) {
+      console.error("Failed to generate AI suggestions:", err);
+    } finally {
+      setIsAiGenerating(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchConstants();
+  }, []);
+
+  const handleAiGenerateClick = () => {
+    fetchAiRecommendations();
+  };
 
   const handleAddPerk = (perk: string) => {
     const trimmed = perk.trim();
     if (trimmed && !customPerks.includes(trimmed)) {
-      setCustomPerks([trimmed, ...customPerks]); // Shows at the top
+      setCustomPerks([trimmed, ...customPerks]);
       setNewPerkInput("");
     }
   };
@@ -53,9 +135,44 @@ export default function BenefitsPage() {
 
   const handleNext = async () => {
     setIsProcessing(true);
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    await new Promise((resolve) => setTimeout(resolve, 1600));
+
+    try {
+      const existingRaw = localStorage.getItem(LS_KEY);
+      const existing = existingRaw ? JSON.parse(existingRaw) : {};
+      const updated = {
+        ...existing,
+        benefits: buildBenefitsPayload(),
+        updatedAt: new Date().toISOString(),
+      };
+      localStorage.setItem(LS_KEY, JSON.stringify(updated));
+    } catch (e) {
+      console.error("Failed to save benefits", e);
+    }
+
     setIsSaved(true);
     setTimeout(() => router.push("/users/system/jobs/create/comp"), 1000);
+  };
+
+  const handleSaveDraft = async () => {
+    setIsProcessing(true);
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+
+    try {
+      const existingRaw = localStorage.getItem(LS_KEY);
+      const existing = existingRaw ? JSON.parse(existingRaw) : {};
+      const updated = {
+        ...existing,
+        benefits: buildBenefitsPayload(),
+        updatedAt: new Date().toISOString(),
+      };
+      localStorage.setItem(LS_KEY, JSON.stringify(updated));
+    } catch (e) {
+      console.error("Failed to save draft", e);
+    }
+
+    setIsSaved(true);
+    setTimeout(() => router.push("/users/system/jobs/active_jobs"), 800);
   };
 
   return (
@@ -147,21 +264,27 @@ export default function BenefitsPage() {
                 Click a suggestion to add it to your pipeline.
               </p>
               <div className="space-y-3">
-                {aiSuggestions.map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => {
-                      handleAddPerk(s);
-                      setShowAiModal(false);
-                    }}
-                    className="w-full text-left p-4 rounded-xl bg-[var(--input-bg)] border border-[var(--border-subtle)] hover:border-primary/50 transition-all font-semibold text-sm text-[var(--text-main)] flex justify-between items-center group"
-                  >
-                    {s}
-                    <span className="material-symbols-outlined text-primary opacity-0 group-hover:opacity-100 transition-opacity">
-                      add_circle
-                    </span>
-                  </button>
-                ))}
+                {isDataLoading ? (
+                  <div className="text-center py-8 text-[var(--text-muted)] font-bold italic opacity-40">
+                    Loading suggestions...
+                  </div>
+                ) : (
+                  availableAiSuggestions.map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => {
+                        handleAddPerk(s);
+                        setShowAiModal(false);
+                      }}
+                      className="w-full text-left p-4 rounded-xl bg-[var(--input-bg)] border border-[var(--border-subtle)] hover:border-primary/50 transition-all font-semibold text-sm text-[var(--text-main)] flex justify-between items-center group"
+                    >
+                      {s}
+                      <span className="material-symbols-outlined text-primary opacity-0 group-hover:opacity-100 transition-opacity">
+                        add_circle
+                      </span>
+                    </button>
+                  ))
+                )}
               </div>
               <button
                 onClick={() => setShowAiModal(false)}
@@ -211,30 +334,21 @@ export default function BenefitsPage() {
                     Standard Benefits
                   </label>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <BenefitCard
-                      icon="health_and_safety"
-                      label="Health Insurance"
-                      isActive={activeBenefits.includes("Health Insurance")}
-                      onClick={() => toggleBenefit("Health Insurance")}
-                    />
-                    <BenefitCard
-                      icon="event_available"
-                      label="Unlimited PTO"
-                      isActive={activeBenefits.includes("Paid Time Off")}
-                      onClick={() => toggleBenefit("Paid Time Off")}
-                    />
-                    <BenefitCard
-                      icon="savings"
-                      label="401k Matching"
-                      isActive={activeBenefits.includes("401k Matching")}
-                      onClick={() => toggleBenefit("401k Matching")}
-                    />
-                    <BenefitCard
-                      icon="family_restroom"
-                      label="Parental Leave"
-                      isActive={activeBenefits.includes("Parental Leave")}
-                      onClick={() => toggleBenefit("Parental Leave")}
-                    />
+                    {isDataLoading ? (
+                      <div className="col-span-full py-8 text-center text-[var(--text-muted)] font-bold italic opacity-40">
+                        Loading benefits...
+                      </div>
+                    ) : (
+                      availableStandardBenefits.map((opt) => (
+                        <BenefitCard
+                          key={opt.id}
+                          icon={opt.icon}
+                          label={opt.label}
+                          isActive={activeBenefits.includes(opt.id)}
+                          onClick={() => toggleBenefit(opt.id)}
+                        />
+                      ))
+                    )}
                   </div>
                 </div>
 
@@ -244,33 +358,24 @@ export default function BenefitsPage() {
                     Work Life & Flexibility
                   </label>
                   <div className="grid grid-cols-1 gap-4">
-                    <ToggleRow
-                      icon="schedule"
-                      title="Flexible Hours"
-                      desc="Autonomy to set your own working schedule"
-                      enabled={toggles.flexible}
-                      onClick={() =>
-                        setToggles({ ...toggles, flexible: !toggles.flexible })
-                      }
-                    />
-                    <ToggleRow
-                      icon="public"
-                      title="Remote First"
-                      desc="Work from anywhere in the world"
-                      enabled={toggles.remote}
-                      onClick={() =>
-                        setToggles({ ...toggles, remote: !toggles.remote })
-                      }
-                    />
-                    <ToggleRow
-                      icon="self_improvement"
-                      title="Mental Health Days"
-                      desc="Dedicated quarterly rejuvenation leave"
-                      enabled={toggles.mental}
-                      onClick={() =>
-                        setToggles({ ...toggles, mental: !toggles.mental })
-                      }
-                    />
+                    {isDataLoading ? (
+                      <div className="py-8 text-center text-[var(--text-muted)] font-bold italic opacity-40">
+                        Loading options...
+                      </div>
+                    ) : (
+                      availableWorkLifeOptions.map((wl) => (
+                        <ToggleRow
+                          key={wl.id}
+                          icon={wl.icon}
+                          title={wl.title}
+                          desc={wl.desc}
+                          enabled={toggles[wl.id]}
+                          onClick={() =>
+                            setToggles({ ...toggles, [wl.id]: !toggles[wl.id] })
+                          }
+                        />
+                      ))
+                    )}
                   </div>
                 </div>
 
@@ -476,7 +581,10 @@ export default function BenefitsPage() {
             <span className="material-symbols-outlined">arrow_back</span>Back
           </button>
           <div className="flex gap-4">
-            <button className="hidden sm:block px-6 py-2.5 rounded-xl border border-[var(--border-subtle)] text-[var(--text-muted)] font-bold text-sm">
+            <button
+              onClick={handleSaveDraft}
+              className="hidden sm:block px-6 py-2.5 rounded-xl border border-[var(--border-subtle)] text-[var(--text-muted)] font-bold text-sm"
+            >
               Save Draft
             </button>
             <button

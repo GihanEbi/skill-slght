@@ -1,8 +1,10 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import { fetchActiveJobs, deleteActiveJobs } from "@/services/jobService";
+import { departments, jobStatuses } from "@/constants/job_constants";
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -14,57 +16,100 @@ const itemVariants = {
   visible: { y: 0, opacity: 1, transition: { duration: 0.4 } },
 };
 
+// Simple time ago formatter
+function timeAgo(dateString: string) {
+  if (!dateString) return "Recently";
+  const now = new Date();
+  const past = new Date(dateString);
+  if (isNaN(past.getTime())) return "Recently";
+  const diffInSeconds = Math.floor((now.getTime() - past.getTime()) / 1000);
+  if (isNaN(diffInSeconds)) return "Recently";
+
+  if (diffInSeconds < 60) return "Just now";
+  const diffInMinutes = Math.floor(diffInSeconds / 60);
+  if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
+  const diffInHours = Math.floor(diffInMinutes / 60);
+  if (diffInHours < 24) return `${diffInHours}h ago`;
+  const diffInDays = Math.floor(diffInHours / 24);
+  if (diffInDays < 30) return `${diffInDays}d ago`;
+  return past.toLocaleDateString();
+}
+
 export default function ActiveJobsPage() {
   const router = useRouter();
 
   // Data State
-  const [activeJobs, setActiveJobs] = useState([
-    {
-      id: 1,
-      title: "Senior Blockchain Engineer",
-      cat: "internal",
-      dept: "Engineering",
-      location: "Remote",
-      posted: "2 days ago",
-      tag: "New",
-      tagColor: "primary",
-      stats: { applied: 42, screening: 12, interview: 5, offer: 1, total: 60 },
-      hiringTeam: ["avatar-1.jpg", "avatar-2.jpg"],
-    },
-    {
-      id: 2,
-      title: "Solidity Smart Contract Auditor",
-      dept: "Security",
-      cat: "external",
-      location: "Lisbon, PT",
-      posted: "5 days ago",
-      tag: "Urgent",
-      tagColor: "orange",
-      stats: { applied: 18, screening: 6, interview: 3, offer: 0, total: 27 },
-      hiringTeam: ["avatar-4.jpg"],
-    },
-    {
-      id: 3,
-      title: "Product Designer (Web3)",
-      dept: "Design",
-      cat: "internal",
-      location: "Remote",
-      posted: "1 week ago",
-      stats: {
-        applied: 84,
-        screening: 32,
-        interview: 12,
-        offer: 2,
-        total: 130,
-      },
-      hiringTeam: ["avatar-1.jpg", "avatar-3.png"],
-    },
-  ]);
+  const [activeJobs, setActiveJobs] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const loadJobs = async () => {
+      setIsLoading(true);
+      try {
+        const jobs = await fetchActiveJobs();
+        if (jobs && jobs.length > 0) {
+          // Map the Job interface to the UI expected format
+          const mapped = jobs.map((j, index) => {
+            // Priority for ID: j.id -> generated from title -> index
+            const safeId =
+              j.id ||
+              `job-${index}-${(j.title || "untilted").toLowerCase().replace(/\s+/g, "-")}`;
+
+            // Priority for category: protocol -> category -> default
+            let category = "external";
+            if (
+              j.publishSettings?.protocol === "Internal Only" ||
+              j.category === "Internal"
+            ) {
+              category = "internal";
+            }
+
+            return {
+              id: safeId,
+              title: j.title || "Untitled Position",
+              cat: category,
+              dept: j.department || "General",
+              location: j.location || "Remote",
+              posted: timeAgo(j.postedAt || j.updatedAt || j.createdAt),
+              tag: j.tag || (j.status === "Draft" ? "Draft" : "New"),
+              tagColor:
+                j.tagColor || (j.status === "Draft" ? "orange" : "primary"),
+              stats: {
+                applied: j.stats?.applied || 0,
+                screening: j.stats?.screening || 0,
+                interview: j.stats?.interview || 0,
+                offer: j.stats?.offer || 0,
+                total: j.stats?.total || 50,
+              },
+              hiringTeam:
+                j.hiringTeamAvatars && j.hiringTeamAvatars.length > 0
+                  ? j.hiringTeamAvatars
+                  : ["avatar-1.jpg"], // Fallback avatar
+              status: j.status || "Active",
+            };
+          });
+          console.log(
+            "Final Mapped Jobs for State:",
+            JSON.stringify(mapped, null, 2),
+          );
+          setActiveJobs(mapped);
+        } else {
+          setActiveJobs([]);
+        }
+      } catch (error) {
+        console.error("Error loading jobs:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadJobs();
+  }, []);
 
   // UI States
-  const [selectedDept, setSelectedDept] = useState("Engineering");
-  const [selectedStatus, setSelectedStatus] = useState("Active");
-  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedDept, setSelectedDept] = useState("All Departments");
+  const [selectedStatus, setSelectedStatus] = useState("All Statuses");
+  const [selectedIds, setSelectedIds] = useState<(string | number)[]>([]);
 
   // Close Flow States
   const [jobToClose, setJobToClose] = useState<any>(null);
@@ -72,8 +117,19 @@ export default function ActiveJobsPage() {
   const [otherReason, setOtherReason] = useState("");
   const [isClosing, setIsClosing] = useState(false);
 
+  const filteredJobs = activeJobs.filter((job) => {
+    const matchesSearch = job.title
+      .toLowerCase()
+      .includes(searchQuery.toLowerCase());
+    const matchesDept =
+      selectedDept === "All Departments" || job.dept === selectedDept;
+    const matchesStatus =
+      selectedStatus === "All Statuses" || job.status === selectedStatus;
+    return matchesSearch && matchesDept && matchesStatus;
+  });
+
   // Selection Handlers
-  const toggleSelect = (id: number) => {
+  const toggleSelect = (id: string | number) => {
     setSelectedIds((prev) =>
       prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id],
     );
@@ -89,11 +145,30 @@ export default function ActiveJobsPage() {
     setSelectedIds([]);
   };
 
+  const handleRefine = () => {
+    setSearchQuery("");
+    setSelectedDept("All Departments");
+    setSelectedStatus("All Statuses");
+  };
+
   const handleConfirmClose = async () => {
     setIsClosing(true);
+    // Add artificial delay for UI transition
     await new Promise((resolve) => setTimeout(resolve, 2000));
-    const idsToRemove = jobToClose === "bulk" ? selectedIds : [jobToClose.id];
+
+    // Get the full objects for the jobs being removed
+    const jobsToRemove =
+      jobToClose === "bulk"
+        ? activeJobs.filter((j) => selectedIds.includes(j.id))
+        : [jobToClose];
+
+    // Persistence with composite key matching
+    await deleteActiveJobs(jobsToRemove);
+
+    // Filter UI state
+    const idsToRemove = jobsToRemove.map((j) => j.id);
     setActiveJobs((prev) => prev.filter((j) => !idsToRemove.includes(j.id)));
+
     setIsClosing(false);
     setJobToClose(null);
     setCloseReason("");
@@ -256,7 +331,7 @@ export default function ActiveJobsPage() {
             <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-[var(--text-main)]">
               Protocol Jobs
               <span className="text-[var(--text-muted)] ml-3 text-lg font-normal opacity-50">
-                {activeJobs.length} positions
+                {filteredJobs.length} positions
               </span>
             </h1>
           </div>
@@ -280,13 +355,14 @@ export default function ActiveJobsPage() {
                 className="ml-4 flex items-center gap-2 group transition-all"
               >
                 <div
-                  className={`w-5 h-5 rounded border flex items-center justify-center transition-all ${selectedIds.length === activeJobs.length ? "bg-primary border-primary text-white" : "border-[var(--border-subtle)] bg-[var(--input-bg)] group-hover:border-primary/50"}`}
+                  className={`w-5 h-5 rounded border flex items-center justify-center transition-all ${selectedIds.length > 0 && selectedIds.length === filteredJobs.length ? "bg-primary border-primary text-white" : "border-[var(--border-subtle)] bg-[var(--input-bg)] group-hover:border-primary/50"}`}
                 >
-                  {selectedIds.length === activeJobs.length && (
-                    <span className="material-symbols-outlined text-[14px] font-bold">
-                      check
-                    </span>
-                  )}
+                  {selectedIds.length > 0 &&
+                    selectedIds.length === filteredJobs.length && (
+                      <span className="material-symbols-outlined text-[14px] font-bold">
+                        check
+                      </span>
+                    )}
                 </div>
                 <span className="text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-tight">
                   Select All
@@ -298,6 +374,8 @@ export default function ActiveJobsPage() {
                   search
                 </span>
                 <input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full bg-transparent border-none rounded-2xl pl-10 pr-6 py-3.5 text-sm text-[var(--text-main)] focus:ring-0 placeholder:text-[var(--text-muted)] font-medium"
                   placeholder="Search by title or keyword..."
                   type="text"
@@ -309,15 +387,18 @@ export default function ActiveJobsPage() {
                 label="Department"
                 selected={selectedDept}
                 setSelected={setSelectedDept}
-                options={["Engineering", "Design", "Marketing", "Security"]}
+                options={["All Departments", ...departments]}
               />
               <ModernDropdown
                 label="Status"
                 selected={selectedStatus}
                 setSelected={setSelectedStatus}
-                options={["Active", "Draft", "Paused"]}
+                options={["All Statuses", ...jobStatuses]}
               />
-              <button className="bg-[var(--input-bg)] hover:bg-primary/10 text-[var(--text-main)] rounded-xl border border-[var(--border-subtle)] flex items-center gap-2 px-4 py-2 text-sm font-semibold h-[46px]">
+              <button
+                onClick={handleRefine}
+                className="bg-[var(--input-bg)] hover:bg-primary/10 text-[var(--text-main)] rounded-xl border border-[var(--border-subtle)] flex items-center gap-2 px-4 py-2 text-sm font-semibold h-[46px]"
+              >
                 <span className="material-symbols-outlined text-lg opacity-60">
                   tune
                 </span>{" "}
@@ -334,22 +415,58 @@ export default function ActiveJobsPage() {
           animate="visible"
           className="grid grid-cols-1 gap-5"
         >
-          <AnimatePresence mode="popLayout">
-            {activeJobs.map((job) => (
-              <JobCard
-                key={job.id}
-                job={job}
-                isSelected={selectedIds.includes(job.id)}
-                onSelect={() => toggleSelect(job.id)}
-                onClose={() => setJobToClose(job)}
-              />
-            ))}
-          </AnimatePresence>
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center py-20">
+              <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin mb-4" />
+              <p className="text-[var(--text-muted)] font-bold">
+                Loading protocol data...
+              </p>
+            </div>
+          ) : filteredJobs && filteredJobs.length > 0 ? (
+            <AnimatePresence>
+              {filteredJobs.map((job) => (
+                <JobCard
+                  key={job.id}
+                  job={job}
+                  isSelected={selectedIds.includes(job.id)}
+                  onSelect={() => toggleSelect(job.id)}
+                  onClose={() => setJobToClose(job)}
+                />
+              ))}
+            </AnimatePresence>
+          ) : (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="glass-panel rounded-[2.5rem] p-12 md:p-20 text-center border-dashed border-2 border-[var(--border-subtle)] bg-white/5"
+            >
+              <div className="w-24 h-24 bg-primary/10 rounded-3xl flex items-center justify-center mx-auto mb-8 border border-primary/20 shadow-glow">
+                <span className="material-symbols-outlined text-primary text-5xl">
+                  work_history
+                </span>
+              </div>
+              <h2 className="text-2xl font-bold text-[var(--text-main)] mb-3 tracking-tight">
+                No Active Jobs Found
+              </h2>
+              <p className="text-sm text-[var(--text-muted)] max-w-sm mx-auto mb-10 leading-relaxed font-medium">
+                Initialize your recruitment pipeline by creating your first
+                protocol listing.
+              </p>
+              <button
+                onClick={() => router.push("/users/system/jobs/create/details")}
+                className="active-tab-gradient text-white font-bold px-10 py-4 rounded-2xl shadow-premium hover:translate-y-[-2px] transition-all"
+              >
+                Create First Job Listing
+              </button>
+            </motion.div>
+          )}
         </motion.div>
         <footer className="mt-16 flex flex-col items-center gap-6">
           <p className="text-sm text-[var(--text-muted)] font-medium">
             Showing{" "}
-            <span className="text-[var(--text-main)]">{activeJobs.length}</span>{" "}
+            <span className="text-[var(--text-main)]">
+              {filteredJobs.length}
+            </span>{" "}
             of {activeJobs.length} active Jobs
           </p>
           <div className="flex gap-2">
@@ -367,12 +484,21 @@ function JobCard({ job, onClose, isSelected, onSelect }: any) {
   const router = useRouter();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
+  console.log("JobCard Rendering:", job?.title, job?.id);
+
+  if (!job) {
+    console.warn("JobCard received null job");
+    return null;
+  }
+
+  // Safety values
+  const applied = job.stats?.applied || 0;
+  const total = job.stats?.total || 1; // Avoid division by zero
+  const screening = job.stats?.screening || 0;
+  const interview = job.stats?.interview || 0;
+
   return (
-    <motion.div
-      layout
-      variants={itemVariants}
-      exit={{ opacity: 0, x: -20 }}
-      // FIX: Dynamic z-index so the open menu card stays on top of the cards below it
+    <div
       style={{ zIndex: isMenuOpen ? 150 : 1 }}
       className={`glass-panel rounded-[24px] p-6 md:p-7 flex flex-col xl:flex-row items-start xl:items-center justify-between w-full gap-8 transition-all group relative overflow-visible shadow-sm ${isSelected ? "border-primary ring-1 ring-primary/20 bg-primary/[0.02]" : "hover:border-primary/30"}`}
     >
@@ -400,7 +526,7 @@ function JobCard({ job, onClose, isSelected, onSelect }: any) {
                 <span className="material-symbols-outlined text-[12px]">
                   {job.cat === "internal" ? "shield_person" : "public"}
                 </span>
-                {job.cat.toUpperCase()}
+                {(job.cat || "external").toUpperCase()}
               </span>
               {job.tag && (
                 <span
@@ -432,43 +558,41 @@ function JobCard({ job, onClose, isSelected, onSelect }: any) {
         <div className="flex justify-between items-end mb-3 text-xs font-semibold">
           <div className="flex gap-4">
             <span className="text-[var(--text-main)]">
-              {job.stats.applied}{" "}
+              {applied}{" "}
               <span className="text-[var(--text-muted)] font-normal ml-0.5">
                 Applied
               </span>
             </span>
             <span className="text-[var(--text-main)]">
-              {job.stats.screening}{" "}
+              {screening}{" "}
               <span className="text-[var(--text-muted)] font-normal ml-0.5">
                 Screening
               </span>
             </span>
             <span className="text-[var(--text-main)]">
-              {job.stats.interview}{" "}
+              {interview}{" "}
               <span className="text-[var(--text-muted)] font-normal ml-0.5">
                 Interviews
               </span>
             </span>
           </div>
-          <span className="text-primary font-bold">
-            {job.stats.total} Total
-          </span>
+          <span className="text-primary font-bold">{total} Total</span>
         </div>
         <div className="w-full h-2 bg-slate-100 dark:bg-white/5 rounded-full flex gap-0.5 overflow-hidden p-0.5 border border-[var(--border-subtle)]">
           <div
             className="h-full rounded-full bg-primary"
-            style={{ width: `${(job.stats.applied / job.stats.total) * 100}%` }}
+            style={{ width: `${(applied / total) * 100}%` }}
           />
           <div
             className="h-full rounded-full bg-primary/40"
             style={{
-              width: `${(job.stats.screening / job.stats.total) * 100}%`,
+              width: `${(screening / total) * 100}%`,
             }}
           />
           <div
             className="h-full rounded-full bg-primary/20"
             style={{
-              width: `${(job.stats.interview / job.stats.total) * 100}%`,
+              width: `${(interview / total) * 100}%`,
             }}
           />
         </div>
@@ -540,7 +664,7 @@ function JobCard({ job, onClose, isSelected, onSelect }: any) {
           </div>
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 }
 
