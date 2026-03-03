@@ -1,12 +1,12 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAddCandidate } from "@/context/AddCandidateContext";
 import { CandidateSource } from "@/types/candidate_types";
 import { motion, AnimatePresence } from "framer-motion";
 
-export default function BasicInfoStep() {
+function BasicInfoContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const editId = searchParams.get("id");
@@ -442,7 +442,7 @@ export default function BasicInfoStep() {
                   </div>
                 </div>
 
-                <div className="p-5 bg-primary/5 rounded-2xl border border-primary/10">
+                <div className="p-5 bg-primary/5 rounded-2xl border-primary/10 border">
                   <p className="text-xs text-(--text-muted) italic leading-relaxed text-center font-medium">
                     {formData.step1.email
                       ? `Candidate "${formData.step1.firstName}" is being indexed into the Talent Pool.`
@@ -523,6 +523,19 @@ export default function BasicInfoStep() {
   );
 }
 
+export default function BasicInfoStep() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-screen items-center justify-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        </div>
+      }
+    >
+      <BasicInfoContent />
+    </Suspense>
+  );
+}
 // ── Sub-components (Internal) ─────────────────────────────────────────────
 
 function FieldError({ msg }: { msg: string }) {
