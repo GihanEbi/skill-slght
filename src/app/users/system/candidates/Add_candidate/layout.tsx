@@ -50,7 +50,9 @@ const steps = [
   },
 ];
 
-export default function AddCandidateLayout({
+import { Suspense } from "react";
+
+function AddCandidateLayoutContent({
   children,
 }: {
   children: React.ReactNode;
@@ -69,7 +71,7 @@ export default function AddCandidateLayout({
     <AddCandidateProvider>
       <div className="min-h-screen flex flex-col mesh-gradient bg-[var(--background)] no-scrollbar">
         {/* ── Stepper Header (Matching Job Theme) ─────────────────────────── */}
-        <header className="w-full px-4 pt-8 md:pt-12">
+        <header className="w-full px-4 pt-8 md:pt-12 border-b border-(--border-subtle)/30 pb-10">
           <div className="max-w-4xl mx-auto flex items-center justify-between relative px-2">
             {steps.map((step, index) => {
               const isActive = index <= currentStepIndex;
@@ -126,5 +128,26 @@ export default function AddCandidateLayout({
         <div className="flex-1 max-w-7xl mx-auto w-full">{children}</div>
       </div>
     </AddCandidateProvider>
+  );
+}
+
+export default function AddCandidateLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex flex-col items-center justify-center bg-(--background)">
+          <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin mb-4" />
+          <p className="text-xs font-bold text-(--text-muted) uppercase tracking-widest animate-pulse">
+            Initializing Pipeline...
+          </p>
+        </div>
+      }
+    >
+      <AddCandidateLayoutContent>{children}</AddCandidateLayoutContent>
+    </Suspense>
   );
 }
