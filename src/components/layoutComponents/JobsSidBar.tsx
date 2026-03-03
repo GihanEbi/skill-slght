@@ -43,7 +43,20 @@ export default function JobsSideBar({
     {
       icon: "diversity_3",
       label: "Candidates",
-      subItems: [{ label: "All Candidates", href: "/users/system/candidates" }],
+      subItems: [
+        {
+          label: "All Candidates",
+          href: "/users/system/candidates/all_candidates",
+        },
+        {
+          label: "Add New Candidate",
+          href: "/users/system/candidates/Add_candidate",
+        },
+        {
+          label: "Candidate Pool",
+          href: "/users/system/candidates/candidate_pool",
+        },
+      ],
     },
     {
       icon: "bar_chart",
