@@ -13,7 +13,7 @@ const navItems = [
     href: "/users/system/jobs/active_jobs",
     activePattern: "/users/system/jobs",
   },
-  { label: "Candidates", href: "/users/system/candidates" },
+  { label: "Candidates", href: "/users/system/candidates/all_candidates" },
   { label: "Reports", href: "/users/system/reports" },
   { label: "Templates", href: "/users/system/templates" },
   { label: "Settings", href: "/users/system/settings" },
