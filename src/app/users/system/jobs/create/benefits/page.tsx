@@ -3,181 +3,161 @@ import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import {
-  fetchStandardBenefitOptions,
-  fetchWorkLifeOptions,
+  getDraft,
+  saveDraft,
+  fetchBenefits,
   fetchAiPerkSuggestions,
-  BenefitOption,
-  WorkLifeOption,
-  LS_KEY,
+  JobDraft,
 } from "@/services/jobService";
+import { Benefit } from "@/types/job_types";
+import { UUID } from "@/types/common_types";
+
+// Work-life toggle config (UI-only, stored as booleans in JobDraft)
+const WORK_LIFE_OPTIONS = [
+  {
+    id: "flexible" as const,
+    icon: "schedule",
+    title: "Flexible Hours",
+    desc: "Employees choose their own working schedule.",
+    draftKey: "work_life_flexible_hours" as keyof JobDraft,
+  },
+  {
+    id: "remote" as const,
+    icon: "home_work",
+    title: "Remote-First",
+    desc: "Full remote work supported globally.",
+    draftKey: "work_life_remote_first" as keyof JobDraft,
+  },
+  {
+    id: "mental" as const,
+    icon: "self_improvement",
+    title: "Mental Health Days",
+    desc: "Dedicated paid days for mental wellbeing.",
+    draftKey: "work_life_mental_health_days" as keyof JobDraft,
+  },
+];
+
 export default function BenefitsPage() {
-  const [activeBenefits, setActiveBenefits] = useState<string[]>([]);
+  // ── Fetched data ──────────────────────────────────────────────────────
+  const [availableBenefits, setAvailableBenefits] = useState<Benefit[]>([]);
+  const [aiSuggestions, setAiSuggestions] = useState<string[]>([]);
+  const [isDataLoading, setIsDataLoading] = useState(true);
+
+  // ── Form state ────────────────────────────────────────────────────────
+  const [selectedBenefitIds, setSelectedBenefitIds] = useState<UUID[]>([]);
+  const [selectedBenefitNames, setSelectedBenefitNames] = useState<string[]>(
+    [],
+  );
   const [customPerks, setCustomPerks] = useState<string[]>([]);
   const [newPerkInput, setNewPerkInput] = useState("");
+  const [flexibleHours, setFlexibleHours] = useState(false);
+  const [remoteFirst, setRemoteFirst] = useState(false);
+  const [mentalHealthDays, setMentalHealthDays] = useState(false);
+
+  // ── UI state ──────────────────────────────────────────────────────────
   const [showAiModal, setShowAiModal] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const [isAiGenerating, setIsAiGenerating] = useState(false);
 
-  const [toggles, setToggles] = useState<Record<string, boolean>>({
-    flexible: false,
-    remote: false,
-    mental: false,
-  });
-
-  const [availableStandardBenefits, setAvailableStandardBenefits] = useState<
-    BenefitOption[]
-  >([]);
-  const [availableWorkLifeOptions, setAvailableWorkLifeOptions] = useState<
-    WorkLifeOption[]
-  >([]);
-  const [availableAiSuggestions, setAvailableAiSuggestions] = useState<
-    string[]
-  >([]);
-  const [isDataLoading, setIsDataLoading] = useState(true);
-
   const router = useRouter();
 
-  // ── Local Storage Hydration ───────────────────────────────────────
+  // ── Load data ─────────────────────────────────────────────────────────
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(LS_KEY);
-      if (raw) {
-        const job = JSON.parse(raw);
-        if (job.benefits) {
-          const b = job.benefits;
-          const standardList: string[] = [];
-          if (b.standard.healthInsurance) standardList.push("Health Insurance");
-          if (b.standard.unlimitedPTO) standardList.push("Paid Time Off");
-          if (b.standard.matching401k) standardList.push("401k Matching");
-          if (b.standard.parentalLeave) standardList.push("Parental Leave");
-
-          setActiveBenefits(standardList);
-          setCustomPerks(b.customPerks || []);
-          setToggles({
-            flexible: !!b.workLife.flexibleHours,
-            remote: !!b.workLife.remoteFirst,
-            mental: !!b.workLife.mentalHealthDays,
-          });
-        }
+    const load = async () => {
+      try {
+        const benefits = await fetchBenefits();
+        setAvailableBenefits(benefits);
+      } catch (err) {
+        console.error("Failed to load benefits:", err);
+      } finally {
+        setIsDataLoading(false);
       }
-    } catch (e) {
-      console.error("Hydration failed", e);
-    }
+    };
+    load();
   }, []);
 
-  const buildBenefitsPayload = () => {
-    return {
-      standard: {
-        healthInsurance: activeBenefits.includes("Health Insurance"),
-        unlimitedPTO: activeBenefits.includes("Paid Time Off"),
-        matching401k: activeBenefits.includes("401k Matching"),
-        parentalLeave: activeBenefits.includes("Parental Leave"),
-      },
-      workLife: {
-        flexibleHours: toggles.flexible,
-        remoteFirst: toggles.remote,
-        mentalHealthDays: toggles.mental,
-      },
-      customPerks,
-    };
-  };
+  // ── Hydrate from draft ────────────────────────────────────────────────
+  useEffect(() => {
+    const draft = getDraft();
+    setSelectedBenefitIds(draft.benefit_ids);
+    setSelectedBenefitNames(draft.benefit_names);
+    setCustomPerks(draft.custom_perks);
+    setFlexibleHours(draft.work_life_flexible_hours);
+    setRemoteFirst(draft.work_life_remote_first);
+    setMentalHealthDays(draft.work_life_mental_health_days);
+  }, []);
 
-  const fetchConstants = async () => {
-    try {
-      const [stds, wls] = await Promise.all([
-        fetchStandardBenefitOptions(),
-        fetchWorkLifeOptions(),
-      ]);
-      setAvailableStandardBenefits(stds);
-      setAvailableWorkLifeOptions(wls);
-    } catch (err) {
-      console.error("Failed to load constant data:", err);
-    } finally {
-      setIsDataLoading(false);
+  // ── Toggle benefit ────────────────────────────────────────────────────
+  const toggleBenefit = (benefit: Benefit) => {
+    const isSelected = selectedBenefitIds.includes(benefit.id);
+    if (isSelected) {
+      setSelectedBenefitIds((prev) => prev.filter((id) => id !== benefit.id));
+      setSelectedBenefitNames((prev) => prev.filter((n) => n !== benefit.name));
+    } else {
+      setSelectedBenefitIds((prev) => [...prev, benefit.id]);
+      setSelectedBenefitNames((prev) => [...prev, benefit.name]);
     }
   };
 
-  const fetchAiRecommendations = async () => {
+  // ── Perk helpers ──────────────────────────────────────────────────────
+  const addPerk = (perk: string) => {
+    const trimmed = perk.trim();
+    if (trimmed && !customPerks.includes(trimmed)) {
+      setCustomPerks((prev) => [trimmed, ...prev]);
+      setNewPerkInput("");
+    }
+  };
+  const removePerk = (perk: string) =>
+    setCustomPerks((prev) => prev.filter((p) => p !== perk));
+
+  // ── AI generate perks ─────────────────────────────────────────────────
+  const handleAiGenerateClick = async () => {
     setIsAiGenerating(true);
     try {
       const suggestions = await fetchAiPerkSuggestions();
-      setAvailableAiSuggestions(suggestions);
+      setAiSuggestions(suggestions);
       setShowAiModal(true);
     } catch (err) {
-      console.error("Failed to generate AI suggestions:", err);
+      console.error("Failed to get AI suggestions:", err);
     } finally {
       setIsAiGenerating(false);
     }
   };
 
-  useEffect(() => {
-    fetchConstants();
-  }, []);
+  // ── Build patch ───────────────────────────────────────────────────────
+  const buildPatch = (): Partial<JobDraft> => ({
+    benefit_ids: selectedBenefitIds,
+    benefit_names: selectedBenefitNames,
+    custom_perks: customPerks,
+    work_life_flexible_hours: flexibleHours,
+    work_life_remote_first: remoteFirst,
+    work_life_mental_health_days: mentalHealthDays,
+  });
 
-  const handleAiGenerateClick = () => {
-    fetchAiRecommendations();
-  };
-
-  const handleAddPerk = (perk: string) => {
-    const trimmed = perk.trim();
-    if (trimmed && !customPerks.includes(trimmed)) {
-      setCustomPerks([trimmed, ...customPerks]);
-      setNewPerkInput("");
-    }
-  };
-
-  const toggleBenefit = (name: string) => {
-    setActiveBenefits((prev) =>
-      prev.includes(name) ? prev.filter((b) => b !== name) : [...prev, name],
-    );
-  };
-
+  // ── Save handlers ─────────────────────────────────────────────────────
   const handleNext = async () => {
     setIsProcessing(true);
-    await new Promise((resolve) => setTimeout(resolve, 1600));
-
-    try {
-      const existingRaw = localStorage.getItem(LS_KEY);
-      const existing = existingRaw ? JSON.parse(existingRaw) : {};
-      const updated = {
-        ...existing,
-        benefits: buildBenefitsPayload(),
-        updatedAt: new Date().toISOString(),
-      };
-      localStorage.setItem(LS_KEY, JSON.stringify(updated));
-    } catch (e) {
-      console.error("Failed to save benefits", e);
-    }
-
+    await new Promise((r) => setTimeout(r, 1400));
+    saveDraft(buildPatch());
     setIsSaved(true);
-    setTimeout(() => router.push("/users/system/jobs/create/comp"), 1000);
+    setTimeout(() => router.push("/users/system/jobs/create/comp"), 900);
   };
 
   const handleSaveDraft = async () => {
     setIsProcessing(true);
-    await new Promise((resolve) => setTimeout(resolve, 1200));
-
-    try {
-      const existingRaw = localStorage.getItem(LS_KEY);
-      const existing = existingRaw ? JSON.parse(existingRaw) : {};
-      const updated = {
-        ...existing,
-        benefits: buildBenefitsPayload(),
-        updatedAt: new Date().toISOString(),
-      };
-      localStorage.setItem(LS_KEY, JSON.stringify(updated));
-    } catch (e) {
-      console.error("Failed to save draft", e);
-    }
-
+    await new Promise((r) => setTimeout(r, 1200));
+    saveDraft({ ...buildPatch(), status: "DRAFT" as any });
     setIsSaved(true);
     setTimeout(() => router.push("/users/system/jobs/active_jobs"), 800);
   };
 
+  // ── Benefit icon helper ───────────────────────────────────────────────
+  const getBenefitIcon = (b: Benefit) => b.icon_url ?? "redeem";
+
   return (
     <div className="min-h-screen flex flex-col mesh-gradient rounded-3xl no-scrollbar bg-[var(--background)]">
-      {/* --- Full Page Loader Overlay --- */}
+      {/* Processing overlay */}
       <AnimatePresence>
         {isProcessing && (
           <motion.div
@@ -187,27 +167,24 @@ export default function BenefitsPage() {
             className="fixed inset-0 z-[200] flex items-center justify-center bg-[var(--background)]/40 backdrop-blur-md"
           >
             <div className="flex flex-col items-center gap-6">
-              {/* The Loader Ring */}
               <div className="relative flex items-center justify-center">
                 <AnimatePresence mode="wait">
                   {!isSaved ? (
                     <motion.div
-                      key="loading-spinner"
+                      key="spinner"
                       initial={{ opacity: 0, scale: 0.8 }}
                       animate={{ opacity: 1, scale: 1 }}
                       exit={{ opacity: 0, scale: 0.8 }}
                       className="relative"
                     >
-                      {/* Outer Spinning Ring */}
                       <div className="w-20 h-20 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
-                      {/* Inner Icon */}
                       <span className="material-symbols-outlined absolute inset-0 flex items-center justify-center text-primary text-2xl animate-pulse">
                         database
                       </span>
                     </motion.div>
                   ) : (
                     <motion.div
-                      key="saved-check"
+                      key="check"
                       initial={{ opacity: 0, scale: 0.5, rotate: -45 }}
                       animate={{ opacity: 1, scale: 1, rotate: 0 }}
                       className="w-20 h-20 bg-primary rounded-full flex items-center justify-center shadow-glow"
@@ -219,19 +196,17 @@ export default function BenefitsPage() {
                   )}
                 </AnimatePresence>
               </div>
-
-              {/* Status Text */}
               <div className="text-center">
                 <motion.h3
                   animate={{ opacity: [0.5, 1, 0.5] }}
                   transition={{ repeat: Infinity, duration: 2 }}
                   className="text-[var(--text-main)] font-bold text-lg tracking-tight"
                 >
-                  {isSaved ? "Protocol Secured" : "Synchronizing Details"}
+                  {isSaved ? "Benefits Saved" : "Saving Benefits..."}
                 </motion.h3>
                 <p className="text-[var(--text-muted)] text-sm font-medium mt-1">
                   {isSaved
-                    ? "Redirecting to Benefits..."
+                    ? "Redirecting to Compensation..."
                     : "Updating recruitment benefits..."}
                 </p>
               </div>
@@ -240,7 +215,7 @@ export default function BenefitsPage() {
         )}
       </AnimatePresence>
 
-      {/* --- AI Recommendations Modal --- */}
+      {/* AI Suggestions Modal */}
       <AnimatePresence>
         {showAiModal && (
           <div className="fixed inset-0 z-[150] flex items-center justify-center p-4">
@@ -264,27 +239,21 @@ export default function BenefitsPage() {
                 Click a suggestion to add it to your pipeline.
               </p>
               <div className="space-y-3">
-                {isDataLoading ? (
-                  <div className="text-center py-8 text-[var(--text-muted)] font-bold italic opacity-40">
-                    Loading suggestions...
-                  </div>
-                ) : (
-                  availableAiSuggestions.map((s) => (
-                    <button
-                      key={s}
-                      onClick={() => {
-                        handleAddPerk(s);
-                        setShowAiModal(false);
-                      }}
-                      className="w-full text-left p-4 rounded-xl bg-[var(--input-bg)] border border-[var(--border-subtle)] hover:border-primary/50 transition-all font-semibold text-sm text-[var(--text-main)] flex justify-between items-center group"
-                    >
-                      {s}
-                      <span className="material-symbols-outlined text-primary opacity-0 group-hover:opacity-100 transition-opacity">
-                        add_circle
-                      </span>
-                    </button>
-                  ))
-                )}
+                {aiSuggestions.map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => {
+                      addPerk(s);
+                      setShowAiModal(false);
+                    }}
+                    className="w-full text-left p-4 rounded-xl bg-[var(--input-bg)] border border-[var(--border-subtle)] hover:border-primary/50 transition-all font-semibold text-sm text-[var(--text-main)] flex justify-between items-center group"
+                  >
+                    {s}
+                    <span className="material-symbols-outlined text-primary opacity-0 group-hover:opacity-100 transition-opacity">
+                      add_circle
+                    </span>
+                  </button>
+                ))}
               </div>
               <button
                 onClick={() => setShowAiModal(false)}
@@ -297,10 +266,11 @@ export default function BenefitsPage() {
         )}
       </AnimatePresence>
 
+      {/* Step header */}
       <header className="w-full px-4 pt-6 md:pt-10">
         <div className="max-w-3xl mx-auto flex items-center justify-between relative px-2">
           <StepItem icon="check_circle" label="Details" completed />
-          <StepLine active />
+          <StepLine />
           <StepItem icon="card_giftcard" label="Benefits" active />
           <StepLine />
           <StepItem icon="payments" label="Compensation" />
@@ -311,13 +281,14 @@ export default function BenefitsPage() {
 
       <main className="flex-1 max-w-7xl mx-auto w-full px-4 py-8 md:py-12">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start pb-32 lg:pb-0">
+          {/* Form */}
           <div className="col-span-1 lg:col-span-8">
             <motion.div
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
               className="glass-panel rounded-[2rem] p-6 md:p-10 shadow-xl"
             >
-              <div className="mb-10 border-b border-[var(--border-subtle)] pb-2">
+              <div className="mb-10 border-b border-[var(--border-subtle)] pb-4">
                 <h1 className="text-2xl md:text-3xl font-bold text-[var(--text-main)] mb-2 tracking-tight">
                   Benefits & Perks
                 </h1>
@@ -328,7 +299,7 @@ export default function BenefitsPage() {
               </div>
 
               <div className="space-y-10">
-                {/* Benefits Buttons */}
+                {/* Standard Benefits */}
                 <div>
                   <label className="block text-xs font-bold text-[var(--text-muted)] mb-5 ml-1 tracking-tight">
                     Standard Benefits
@@ -339,53 +310,52 @@ export default function BenefitsPage() {
                         Loading benefits...
                       </div>
                     ) : (
-                      availableStandardBenefits.map((opt) => (
+                      availableBenefits.map((b) => (
                         <BenefitCard
-                          key={opt.id}
-                          icon={opt.icon}
-                          label={opt.label}
-                          isActive={activeBenefits.includes(opt.id)}
-                          onClick={() => toggleBenefit(opt.id)}
+                          key={b.id}
+                          icon={getBenefitIcon(b)}
+                          label={b.name}
+                          isActive={selectedBenefitIds.includes(b.id)}
+                          onClick={() => toggleBenefit(b)}
                         />
                       ))
                     )}
                   </div>
                 </div>
 
-                {/* Work Life Flexibility */}
+                {/* Work Life & Flexibility */}
                 <div>
                   <label className="block text-xs font-bold text-[var(--text-muted)] mb-5 ml-1 tracking-tight">
                     Work Life & Flexibility
                   </label>
                   <div className="grid grid-cols-1 gap-4">
-                    {isDataLoading ? (
-                      <div className="py-8 text-center text-[var(--text-muted)] font-bold italic opacity-40">
-                        Loading options...
-                      </div>
-                    ) : (
-                      availableWorkLifeOptions.map((wl) => (
-                        <ToggleRow
-                          key={wl.id}
-                          icon={wl.icon}
-                          title={wl.title}
-                          desc={wl.desc}
-                          enabled={toggles[wl.id]}
-                          onClick={() =>
-                            setToggles({ ...toggles, [wl.id]: !toggles[wl.id] })
-                          }
-                        />
-                      ))
-                    )}
+                    <ToggleRow
+                      icon={WORK_LIFE_OPTIONS[0].icon}
+                      title={WORK_LIFE_OPTIONS[0].title}
+                      desc={WORK_LIFE_OPTIONS[0].desc}
+                      enabled={flexibleHours}
+                      onClick={() => setFlexibleHours((v) => !v)}
+                    />
+                    <ToggleRow
+                      icon={WORK_LIFE_OPTIONS[1].icon}
+                      title={WORK_LIFE_OPTIONS[1].title}
+                      desc={WORK_LIFE_OPTIONS[1].desc}
+                      enabled={remoteFirst}
+                      onClick={() => setRemoteFirst((v) => !v)}
+                    />
+                    <ToggleRow
+                      icon={WORK_LIFE_OPTIONS[2].icon}
+                      title={WORK_LIFE_OPTIONS[2].title}
+                      desc={WORK_LIFE_OPTIONS[2].desc}
+                      enabled={mentalHealthDays}
+                      onClick={() => setMentalHealthDays((v) => !v)}
+                    />
                   </div>
                 </div>
 
-                {/* --- Additional Perks Interactive Card --- */}
+                {/* Additional Perks */}
                 <div className="space-y-3">
-                  {/* <label className="block text-xs font-bold text-[var(--text-muted)] ml-1">
-                    Additional Perks
-                  </label> */}
                   <div className="glass-panel rounded-2xl overflow-hidden border-[var(--border-subtle)] focus-within:ring-1 focus-within:ring-primary/30 transition-all relative">
-                    {/* --- Localized AI Loader --- */}
                     <AnimatePresence>
                       {isAiGenerating && (
                         <motion.div
@@ -420,7 +390,6 @@ export default function BenefitsPage() {
                       )}
                     </AnimatePresence>
 
-                    {/* Card Header */}
                     <div className="flex items-center gap-5 px-5 py-2.5 bg-[var(--surface)] border-b border-[var(--border-subtle)]">
                       <span className="text-xs font-bold text-[var(--text-main)]">
                         Additional Perks
@@ -440,7 +409,6 @@ export default function BenefitsPage() {
                       </button>
                     </div>
 
-                    {/* Card Body */}
                     <div className="p-6">
                       <AnimatePresence>
                         {customPerks.length > 0 && (
@@ -455,11 +423,7 @@ export default function BenefitsPage() {
                               >
                                 {perk}
                                 <span
-                                  onClick={() =>
-                                    setCustomPerks(
-                                      customPerks.filter((p) => p !== perk),
-                                    )
-                                  }
+                                  onClick={() => removePerk(perk)}
                                   className="material-symbols-outlined text-sm cursor-pointer opacity-70 hover:opacity-100"
                                 >
                                   close
@@ -469,7 +433,6 @@ export default function BenefitsPage() {
                           </div>
                         )}
                       </AnimatePresence>
-
                       <div className="flex gap-3">
                         <input
                           type="text"
@@ -478,11 +441,11 @@ export default function BenefitsPage() {
                           value={newPerkInput}
                           onChange={(e) => setNewPerkInput(e.target.value)}
                           onKeyDown={(e) =>
-                            e.key === "Enter" && handleAddPerk(newPerkInput)
+                            e.key === "Enter" && addPerk(newPerkInput)
                           }
                         />
                         <button
-                          onClick={() => handleAddPerk(newPerkInput)}
+                          onClick={() => addPerk(newPerkInput)}
                           className="px-5 py-3 rounded-xl bg-primary/10 text-primary font-bold text-xs hover:bg-primary/20 transition-all border border-primary/20 whitespace-nowrap"
                         >
                           Add Perk
@@ -495,14 +458,14 @@ export default function BenefitsPage() {
             </motion.div>
           </div>
 
-          {/* AI Sidebar */}
+          {/* Sidebar */}
           <div className="col-span-1 lg:col-span-4 lg:sticky lg:top-10 order-1 lg:order-2">
             <motion.div
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               className="glass-panel rounded-[2rem] p-8 shadow-glow relative overflow-hidden border-primary/10"
             >
-              <div className="absolute top-0 right-0 w-40 h-40 bg-primary/10 blur-[60px] rounded-full pointer-events-none"></div>
+              <div className="absolute top-0 right-0 w-40 h-40 bg-primary/10 blur-[60px] rounded-full pointer-events-none" />
               <div className="relative z-10 space-y-8">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg text-white">
@@ -519,26 +482,28 @@ export default function BenefitsPage() {
                     </p>
                   </div>
                 </div>
-
                 <div className="space-y-6 pt-6 border-t border-[var(--border-subtle)]">
                   <div>
                     <h4 className="text-xs font-bold text-[var(--text-muted)] mb-4 tracking-tight">
-                      Recommendation
+                      Selected Benefits
                     </h4>
-                    <div className="p-4 bg-[var(--input-bg)] rounded-xl border border-primary/20">
-                      <p className="text-sm font-bold text-primary mb-1 flex items-center gap-2">
-                        <span className="material-symbols-outlined text-base">
-                          token
-                        </span>
-                        Token Allocation
+                    {selectedBenefitNames.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {selectedBenefitNames.map((n) => (
+                          <span
+                            key={n}
+                            className="px-3 py-1 rounded-lg bg-primary/10 text-primary text-[11px] font-bold border border-primary/20"
+                          >
+                            {n}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-[var(--text-muted)] italic font-medium">
+                        No benefits selected yet.
                       </p>
-                      <p className="text-xs text-[var(--text-muted)] leading-relaxed font-medium">
-                        90% of engineers at this level expect token grants.
-                        Adding this increases reach by 45%.
-                      </p>
-                    </div>
+                    )}
                   </div>
-
                   <div className="bg-[var(--input-bg)] rounded-xl p-4 border border-[var(--border-subtle)]">
                     <div className="flex justify-between text-[11px] font-bold mb-2">
                       <span className="text-[var(--text-muted)]">
@@ -549,19 +514,25 @@ export default function BenefitsPage() {
                     <div className="w-full h-1.5 bg-[var(--border-subtle)] rounded-full overflow-hidden">
                       <motion.div
                         initial={{ width: 0 }}
-                        animate={{ width: "66%" }}
-                        transition={{ duration: 1 }}
+                        animate={{
+                          width: `${Math.min(
+                            30 +
+                              selectedBenefitIds.length * 10 +
+                              customPerks.length * 5,
+                            100,
+                          )}%`,
+                        }}
+                        transition={{ duration: 0.8 }}
                         className="h-full bg-gradient-to-r from-primary to-accent"
                       />
                     </div>
                   </div>
-
                   <div className="p-5 bg-primary/5 rounded-2xl border border-primary/10">
                     <p className="text-xs text-[var(--text-muted)] italic leading-relaxed text-center font-medium">
                       "Including Learning stipends would place this package in
                       the{" "}
                       <span className="text-primary font-bold">top 15%</span> of
-                      Web3 protocols."
+                      tech protocols."
                     </p>
                   </div>
                 </div>
@@ -571,14 +542,15 @@ export default function BenefitsPage() {
         </div>
       </main>
 
-      {/* Sticky Footer */}
+      {/* Footer */}
       <footer className="mt-auto border-t border-[var(--border-subtle)] bg-[var(--background)]/80 backdrop-blur-md z-[90]">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           <button
-            className="flex items-center gap-2 text-[var(--text-muted)] font-bold text-sm"
+            className="flex items-center gap-2 text-[var(--text-muted)] font-bold text-sm hover:text-[var(--text-main)] transition-all"
             onClick={() => router.push("/users/system/jobs/create/details")}
           >
-            <span className="material-symbols-outlined">arrow_back</span>Back
+            <span className="material-symbols-outlined">arrow_back</span>
+            Back
           </button>
           <div className="flex gap-4">
             <button
@@ -601,7 +573,20 @@ export default function BenefitsPage() {
   );
 }
 
-function StepItem({ icon, label, active = false, completed = false }: any) {
+// ---------------------------------------------------------------------------
+// Sub-components
+// ---------------------------------------------------------------------------
+function StepItem({
+  icon,
+  label,
+  active = false,
+  completed = false,
+}: {
+  icon: string;
+  label: string;
+  active?: boolean;
+  completed?: boolean;
+}) {
   return (
     <div className="flex flex-col items-center gap-2 z-10">
       <div
@@ -616,7 +601,9 @@ function StepItem({ icon, label, active = false, completed = false }: any) {
         <span className="material-symbols-outlined text-xl">{icon}</span>
       </div>
       <span
-        className={`text-[10px] font-bold hidden sm:block tracking-tight ${active ? "text-primary" : "text-[var(--text-muted)]"}`}
+        className={`text-[10px] font-bold hidden sm:block tracking-tight ${
+          active ? "text-primary" : "text-[var(--text-muted)]"
+        }`}
       >
         {label}
       </span>
@@ -624,13 +611,23 @@ function StepItem({ icon, label, active = false, completed = false }: any) {
   );
 }
 
-function StepLine({ active = false }: any) {
+function StepLine() {
   return (
     <div className="flex-1 h-[1px] bg-[var(--border-subtle)] mx-2 translate-y-[-12px] sm:translate-y-[-14px]" />
   );
 }
 
-function BenefitCard({ icon, label, isActive, onClick }: any) {
+function BenefitCard({
+  icon,
+  label,
+  isActive,
+  onClick,
+}: {
+  icon: string;
+  label: string;
+  isActive: boolean;
+  onClick: () => void;
+}) {
   return (
     <button
       type="button"
@@ -642,23 +639,39 @@ function BenefitCard({ icon, label, isActive, onClick }: any) {
       }`}
     >
       <span
-        className={`material-symbols-outlined text-2xl transition-colors ${isActive ? "text-primary" : "group-hover:text-primary"}`}
+        className={`material-symbols-outlined text-2xl transition-colors ${
+          isActive ? "text-primary" : "group-hover:text-primary"
+        }`}
       >
         {icon}
       </span>
-      <span className="text-[11px] font-bold tracking-tight leading-tight">
+      <span className="text-[11px] font-bold tracking-tight leading-tight text-center">
         {label}
       </span>
     </button>
   );
 }
 
-function ToggleRow({ icon, title, desc, enabled, onClick }: any) {
+function ToggleRow({
+  icon,
+  title,
+  desc,
+  enabled,
+  onClick,
+}: {
+  icon: string;
+  title: string;
+  desc: string;
+  enabled: boolean;
+  onClick: () => void;
+}) {
   return (
     <div className="flex items-center justify-between p-5 bg-[var(--input-bg)] border border-[var(--border-subtle)] rounded-2xl">
       <div className="flex items-center gap-4">
         <span
-          className={`material-symbols-outlined ${enabled ? "text-primary" : "text-slate-400"} text-xl transition-colors`}
+          className={`material-symbols-outlined ${
+            enabled ? "text-primary" : "text-slate-400"
+          } text-xl transition-colors`}
         >
           {icon}
         </span>
@@ -674,7 +687,9 @@ function ToggleRow({ icon, title, desc, enabled, onClick }: any) {
       <button
         type="button"
         onClick={onClick}
-        className={`w-11 h-6 rounded-full transition-colors relative flex items-center px-1 flex-shrink-0 ${enabled ? "bg-primary shadow-glow" : "bg-black/20 dark:bg-white/10"}`}
+        className={`w-11 h-6 rounded-full transition-colors relative flex items-center px-1 flex-shrink-0 ${
+          enabled ? "bg-primary shadow-glow" : "bg-black/20 dark:bg-white/10"
+        }`}
       >
         <motion.div
           animate={{ x: enabled ? 20 : 0 }}

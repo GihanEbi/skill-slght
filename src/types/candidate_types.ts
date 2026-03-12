@@ -1,343 +1,176 @@
-// ─── ENUMS ───────────────────────────────────────────────────
+import { SkillSource, Timestamp, UUID } from "./common_types";
+import { ProficiencyLevel } from "./job_types";
+// -----------------------------------------------------------------------------
+// Enums
+// -----------------------------------------------------------------------------
+
+export enum CandidateJobStatus {
+  Active = "ACTIVE",
+  Draft = "DRAFT",
+  Urgent = "URGENT",
+  Paused = "PAUSED",
+  Closed = "CLOSED",
+}
 
 export enum CandidateStatus {
-  ACTIVE = "active", // Currently in pipeline / looking
-  PASSIVE = "passive", // Open but not actively seeking
-  PLACED = "placed", // Hired via system
-  BLACKLISTED = "blacklisted", // Not eligible for rehire
-  ARCHIVED = "archived",
+  Active = "ACTIVE",
+  Placed = "PLACED",
+  Archived = "ARCHIVED",
 }
 
 export enum CandidateSource {
-  LINKEDIN = "linkedin",
-  INDEED = "indeed",
-  REFERRAL = "referral",
-  DIRECT_APPLICATION = "direct_application",
-  AI_SUGGESTED = "ai_suggested",
-  INTERNAL = "internal",
-  AGENCY = "agency",
-  CAREER_FAIR = "career_fair",
-  OTHER = "other",
+  LinkedIn = "LINKEDIN",
+  Indeed = "INDEED",
+  Referral = "REFERRAL",
+  DirectApplication = "DIRECT_APPLICATION",
+  Internal = "INTERNAL",
+  Agency = "AGENCY",
+  CareerFair = "CAREER_FAIR",
+  Other = "OTHER",
 }
 
-export enum ApplicationStatus {
-  SOURCED = "sourced",
-  OUTREACH_SENT = "outreach_sent",
-  CONSENT_RECEIVED = "consent_received",
-  APPLIED = "applied",
-  SCREENING = "screening",
-  ASSESSMENT = "assessment",
-  INTERVIEW_STAGE_1 = "interview_stage_1",
-  INTERVIEW_STAGE_2 = "interview_stage_2",
-  INTERVIEW_STAGE_3 = "interview_stage_3",
-  OFFER_EXTENDED = "offer_extended",
-  OFFER_ACCEPTED = "offer_accepted",
-  OFFER_DECLINED = "offer_declined",
-  HIRED = "hired",
-  REJECTED = "rejected",
-  WITHDRAWN = "withdrawn",
-  ON_HOLD = "on_hold",
+export enum AvailabilityStatus {
+  Immediately = "IMMEDIATELY",
+  TwoWeeks = "2_WEEKS",
+  OneMonth = "1_MONTH",
+  ThreeMonths = "3_MONTHS",
+  NotAvailable = "NOT_AVAILABLE",
+}
+export enum CertificateType {
+  CoverLetter = "COVER_LETTER",
+  Identification = "IDENTIFICATION",
 }
 
-export enum ConsentStatus {
-  PENDING = "pending",
-  GRANTED = "granted",
-  DECLINED = "declined",
-  REVOKED = "revoked",
+export interface CandidateSocialLink {
+  platform: string;
+  url: string;
 }
 
-export enum SkillProficiency {
-  BEGINNER = "beginner",
-  INTERMEDIATE = "intermediate",
-  ADVANCED = "advanced",
-  EXPERT = "expert",
+export interface CandidateSkillCategory {
+  category: string;
+  skills: string[];
 }
 
-// ─── SUB-MODELS ──────────────────────────────────────────────
+export interface CandidateAssessment {
+  label: string;
+  score: number;
+}
 
-export interface CandidateSkill {
+export interface CandidateExperience {
   id: string;
-  candidateId: string;
-  skillName: string;
-  proficiency: SkillProficiency;
-  yearsOfExperience?: number;
+  company_name: string;
+  job_title: string;
+  start_date: string;
+  end_date: string | null;
+  is_currently_work_here: boolean;
+  role_contribution: string;
+  technologies: string[];
 }
-
-export interface WorkExperience {
-  id: string;
-  candidateId: string;
-  companyName: string;
-  jobTitle: string;
-  startDate: Date;
-  endDate?: Date; // null = current role
-  isCurrent: boolean;
-  description?: string;
-  location?: string;
-}
-
-export interface Education {
-  id: string;
-  candidateId: string;
-  institution: string;
-  degree: string;
-  fieldOfStudy: string;
-  startDate: Date;
-  endDate?: Date;
-  grade?: string;
-}
-
-export interface CandidateDocument {
-  id: string;
-  candidateId: string;
-  documentType: string; // "resume" | "cover_letter" | "certificate" | "id_proof"
-  fileName: string;
-  fileUrl: string;
-  uploadedAt: Date;
-  verifiedAt?: Date;
-  verifiedBy?: string; // userId of HR verifier
-}
-
-export interface CandidateNote {
-  id: string;
-  candidateId: string;
-  content: string;
-  createdBy: string; // userId
-  createdAt: Date;
-  updatedAt?: Date;
-}
-
-export interface OutreachLog {
-  id: string;
-  candidateId: string;
-  jobId: string;
-  channel: "email" | "sms" | "whatsapp" | "phone" | "in_app";
-  message: string;
-  sentAt: Date;
-  responseReceivedAt?: Date;
-  responseType?: "interested" | "not_interested" | "no_response";
-}
-
-export interface ConsentRecord {
-  id: string;
-  candidateId: string;
-  consentType: "data_processing" | "marketing" | "background_check";
-  status: ConsentStatus;
-  grantedAt?: Date;
-  revokedAt?: Date;
-  ipAddress?: string; // For GDPR audit
-}
-
-// ─── APPLICATION (Candidate ↔ Job link) ──────────────────────
-
-export interface Application {
-  id: string;
-  candidateId: string;
-  jobId: string;
-
-  status: ApplicationStatus;
-  currentStage?: string; // e.g. "Technical Interview"
-  source: CandidateSource;
-  referredBy?: string; // userId or external name
-
-  aiMatchScore?: number; // 0–100
-  aiMatchJustification?: string; // e.g. "Matches: Java, PM; Same region"
-
-  appliedAt: Date;
-  lastUpdatedAt: Date;
-  closedAt?: Date;
-
-  isInternalCandidate: boolean;
-  isOffshoreInterview: boolean;
-
-  offerId?: string;
-  createdBy: string; // userId who added to pipeline
-}
-
-// ─── CORE CANDIDATE MODEL ────────────────────────────────────
 
 export interface Candidate {
-  // Identity
   id: string;
-  firstName: string;
-  lastName: string;
+  first_name: string;
+  last_name: string;
   email: string;
-  phone?: string;
-  whatsapp?: string;
-  linkedInUrl?: string;
-  portfolioUrl?: string;
-  profilePhotoUrl?: string;
-
-  // Location
+  phone_no: string;
   country: string;
-  city?: string;
-  timezone?: string;
-  willingToRelocate?: boolean;
-
-  // Current Role
-  currentJobTitle?: string;
-  currentCompany?: string;
-  currentSalary?: number;
-  currentSalaryCurrency?: string; // ISO 4217 e.g. "USD", "LKR"
-
-  // Availability
-  availabilityStatus:
-    | "immediately"
-    | "2_weeks"
-    | "1_month"
-    | "3_months"
-    | "not_available";
-  earliestStartDate?: Date;
-  noticePeriodDays?: number;
-
-  // Status & Source
+  city: string;
   status: CandidateStatus;
-  source: CandidateSource;
-  sourceDetail?: string; // e.g. "LinkedIn Recruiter - Nov 2025 campaign"
+  candidate_source: CandidateSource;
+  availability_status: AvailabilityStatus;
+  avatar_id: string;
+  current_role: string;
+  current_company: string;
+  isUnicorn: boolean;
+  pipeline_status: CandidateJobStatus;
+  pipeline_stage: string;
+  created_at: string;
+  updated_at: string;
 
-  // GDPR / Privacy
-  gdprConsent: boolean;
-  gdprConsentDate?: Date;
-  dataRetentionExpiry?: Date;
-  isAnonymized: boolean;
+  // Resume & Links
+  social_links: CandidateSocialLink[];
+  resume_file_name: string;
+  resume_size: string;
 
-  // Tags (searchable labels)
-  tags: string[]; // e.g. ["strong_communicator", "eligible_for_rehire", "leadership_talent"]
+  // Profile Insights
+  total_experience: string;
+  expected_salary: string;
+  languages: string;
 
-  // System Fields
-  createdAt: Date;
-  updatedAt: Date;
-  createdBy: string;
-  lastContactedAt?: Date;
-  lastContactedBy?: string;
+  // Core Expertise
+  skills: CandidateSkillCategory[];
 
-  // Relations (populated via joins)
-  skills?: CandidateSkill[];
-  workExperience?: WorkExperience[];
-  education?: Education[];
-  documents?: CandidateDocument[];
-  notes?: CandidateNote[];
-  applications?: Application[];
-  consentRecords?: ConsentRecord[];
-  outreachLogs?: OutreachLog[];
+  // Assessment Scores
+  assessments: CandidateAssessment[];
+
+  // Experience
+  experiences: CandidateExperience[];
+
+  // Retained Original Fields (Optional)
+  cv_url_id?: string | null;
+  is_verified?: boolean;
+  linkedin_url?: string | null;
+  website_url?: string | null;
+  source_details?: string | null;
+  current_salary?: number | null;
+  earliest_start_date?: string | null; // ISO date "YYYY-MM-DD"
+  created_by?: string | null;
+  updated_by?: string | null;
 }
 
-// ─── ADD CANDIDATE FORM DATA (Multi-Step) ──────────────────────
-
-export interface BasicInfo {
-  firstName: string; // required
-  lastName: string; // required
-  email: string; // required, unique
-  phone?: string;
-  whatsapp?: string;
-
-  // Profile
-  profilePhoto?: File | string; // File for upload, string for URL after parsing
-  linkedInUrl?: string;
-  portfolioUrl?: string;
-
-  // Location
-  country: string; // required
-  city?: string;
-  timezone?: string;
-  willingToRelocate?: boolean;
-
-  // Source (how they entered the system)
-  source: CandidateSource; // required
-  sourceDetail?: string; // e.g. "LinkedIn Nov 2025 campaign"
+export interface CandidateSkill {
+  id: UUID;
+  candidate_id: UUID;
+  skill_id: UUID;
+  years_experience: number | null;
+  proficiency_level: ProficiencyLevel;
+  skill_source: SkillSource;
+  is_extracted_by_ai: boolean;
+  /** 0.00 – 100.00 */
+  confidence_score: number | null;
+  created_at: Timestamp;
+  updated_at: Timestamp;
+  created_by: UUID;
+  updated_by: UUID;
 }
 
-export interface CurrentRoleInfo {
-  // Current Position
-  currentJobTitle?: string;
-  currentCompany?: string;
-  currentSalary?: number;
-  currentSalaryCurrency?: string; // e.g. "USD", "LKR"
-
-  // Availability
-  availabilityStatus:
-    | "immediately"
-    | "2_weeks"
-    | "1_month"
-    | "3_months"
-    | "not_available"; // required
-  earliestStartDate?: Date | string;
-  noticePeriodDays?: number;
-
-  // Overall Status
-  status: CandidateStatus; // active | passive | etc.
+export interface CandidateWorkExperience {
+  id: UUID;
+  candidate_id: UUID;
+  company_name: string;
+  job_title: string;
+  start_date: string; // "YYYY-MM-DD"
+  end_date: string | null; // "YYYY-MM-DD"
+  is_currently_work_here: boolean;
+  role_contribution: string | null;
+  created_at: Timestamp;
+  updated_at: Timestamp;
+  created_by: UUID;
+  updated_by: UUID;
 }
 
-export interface SkillEntry {
-  skillName: string; // required
-  proficiency: SkillProficiency; // beginner | intermediate | advanced | expert
-  yearsOfExperience?: number;
+export interface CandidateEducation {
+  id: UUID;
+  candidate_id: UUID;
+  institute_name: string;
+  degree_qualification: string;
+  field_of_study: string | null;
+  start_date: string; // "YYYY-MM-DD"
+  end_date: string | null; // "YYYY-MM-DD"
+  is_currently_study: boolean;
+  created_at: Timestamp;
+  updated_at: Timestamp;
+  created_by: UUID;
+  updated_by: UUID;
 }
 
-export interface SkillsInfo {
-  skills: SkillEntry[]; // at least 1 recommended
-}
-
-export interface WorkExperienceEntry {
-  companyName: string; // required
-  jobTitle: string; // required
-  startDate: Date | string; // required
-  endDate?: Date | string; // null if current
-  isCurrent: boolean;
-  location?: string;
-  description?: string;
-}
-
-export interface WorkExperienceInfo {
-  workExperience: WorkExperienceEntry[]; // repeatable section
-}
-
-export interface EducationEntry {
-  institution: string; // required
-  degree: string; // required, e.g. "Bachelor of Science"
-  fieldOfStudy: string; // required, e.g. "Computer Science"
-  startDate: Date | string; // required
-  endDate?: Date | string;
-  grade?: string;
-}
-
-export interface EducationInfo {
-  education: EducationEntry[]; // repeatable section
-}
-
-export interface DocumentsInfo {
-  resume?: File; // parsed on upload to auto-fill earlier fields
-  coverLetter?: File;
-  certifications?: File[];
-  portfolioFiles?: File[];
-
-  // Additional for onboarding readiness (Phase 2)
-  idProof?: File;
-  addressProof?: File;
-}
-
-export interface ConsentAndTagsInfo {
-  internalNotes: string;
-  // GDPR Consent
-  gdprConsent: boolean; // required checkbox
-  gdprConsentDate: Date | string; // auto-set to now on submit
-
-  // Recruiter-added tags
-  tags: string[]; // e.g. ["strong_communicator", "eligible_for_rehire"]
-
-  // Internal notes (optional, recruiter-only)
-  initialNote?: string;
-
-  // Data retention
-  dataRetentionExpiry?: Date | string; // auto-calculated if not set
-}
-
-export interface AddCandidateFormData {
-  id?: string;
-  step1: BasicInfo;
-  step2: CurrentRoleInfo;
-  step3: SkillsInfo;
-  step4: WorkExperienceInfo;
-  step5: EducationInfo;
-  step6: DocumentsInfo;
-  step7: ConsentAndTagsInfo;
+export interface CertificationFile {
+  id: UUID;
+  candidate_id: UUID;
+  file_storage_id: UUID;
+  certificate_type: CertificateType;
+  created_at: Timestamp;
+  updated_at: Timestamp;
+  created_by: UUID;
+  updated_by: UUID;
 }

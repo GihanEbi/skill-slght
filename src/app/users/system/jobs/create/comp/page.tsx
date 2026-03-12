@@ -3,39 +3,39 @@ import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import {
-  LS_KEY,
+  getDraft,
+  saveDraft,
   fetchCurrencies,
   fetchFinancialAiSuggestions,
+  JobDraft,
 } from "@/services/jobService";
-import { createBlankJob } from "@/models/Job";
 
 export default function CompensationPage() {
   const router = useRouter();
 
-  // --- States ---
-  const [currency, setCurrency] = useState("USD");
-  const [minSalary, setMinSalary] = useState(120000);
-  const [maxSalary, setMaxSalary] = useState(180000);
-  const [financialTags, setFinancialTags] = useState<string[]>([]);
-  const [newTagInput, setNewTagInput] = useState("");
-
+  // ── Fetched data ──────────────────────────────────────────────────────
   const [currencies, setCurrencies] = useState<string[]>([]);
   const [aiSuggestions, setAiSuggestions] = useState<string[]>([]);
 
+  // ── Form state (maps to JobDraft compensation fields) ─────────────────
+  const [currency, setCurrency] = useState("USD");
+  const [minSalary, setMinSalary] = useState(120000);
+  const [maxSalary, setMaxSalary] = useState(180000);
+  const [performanceBonus, setPerformanceBonus] = useState(true);
+  const [signingBonus, setSigningBonus] = useState(false);
+  const [stockOptions, setStockOptions] = useState(true);
+  const [financialAddOns, setFinancialAddOns] = useState<string[]>([]);
+  const [newTagInput, setNewTagInput] = useState("");
+
+  // ── UI state ──────────────────────────────────────────────────────────
   const [showAiModal, setShowAiModal] = useState(false);
   const [isAiGenerating, setIsAiGenerating] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
 
-  const [toggles, setToggles] = useState({
-    bonus: true,
-    signing: false,
-    equity: true,
-  });
-
-  // ── Initial Data Fetching ──────────────────────────────────────────────
+  // ── Load data ─────────────────────────────────────────────────────────
   useEffect(() => {
-    const loadData = async () => {
+    const load = async () => {
       try {
         const [cList, sList] = await Promise.all([
           fetchCurrencies(),
@@ -44,128 +44,100 @@ export default function CompensationPage() {
         setCurrencies(cList);
         setAiSuggestions(sList);
       } catch (e) {
-        console.error("Failed to load comp constants", e);
+        console.error("Failed to load comp data:", e);
       }
     };
-    loadData();
+    load();
   }, []);
 
-  // ── Hydration ──────────────────────────────────────────────────────────
+  // ── Hydrate from draft ────────────────────────────────────────────────
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(LS_KEY);
-      if (raw) {
-        const job = JSON.parse(raw);
-        if (job.compensation) {
-          const c = job.compensation;
-          setCurrency(c.currency || "USD");
-          setMinSalary(c.minSalary || 120000);
-          setMaxSalary(c.maxSalary || 180000);
-          setFinancialTags(c.financialAddOns || []);
-          setToggles({
-            bonus: !!c.bonusEquity?.performanceBonus,
-            signing: !!c.bonusEquity?.signingBonus,
-            equity: !!c.bonusEquity?.stockOptions,
-          });
-        }
-      }
-    } catch (e) {
-      console.error("Comp hydration failed", e);
-    }
+    const draft = getDraft();
+    if (draft.currency) setCurrency(draft.currency);
+    if (draft.salary_min !== null) setMinSalary(draft.salary_min ?? 120000);
+    if (draft.salary_max !== null) setMaxSalary(draft.salary_max ?? 180000);
+    setPerformanceBonus(draft.performance_bonus);
+    setSigningBonus(draft.signing_bonus);
+    setStockOptions(draft.stock_options);
+    setFinancialAddOns(draft.financial_add_ons);
   }, []);
 
-  const buildCompPayload = () => {
-    return {
-      currency: currency as any,
-      minSalary,
-      maxSalary,
-      bonusEquity: {
-        performanceBonus: toggles.bonus,
-        signingBonus: toggles.signing,
-        stockOptions: toggles.equity,
-      },
-      financialAddOns: financialTags,
-    };
-  };
-
-  // --- Logic ---
-
-  // Currency logic: 1 USD = 300 LKR
+  // ── Currency change helper ────────────────────────────────────────────
   const handleCurrencyChange = (newCurr: string) => {
     if (newCurr === currency) return;
-
-    // Extract code from string (e.g., "USD - US Dollar" -> "USD")
-    const currCode = newCurr.split(" ")[0];
-
-    if (currCode === "LKR") {
-      setMinSalary((prev) => prev * 300);
-      setMaxSalary((prev) => prev * 300);
-    } else {
-      setMinSalary((prev) => Math.round(prev / 300));
-      setMaxSalary((prev) => Math.round(prev / 300));
+    const isLKR = newCurr === "LKR";
+    const wasLKR = currency === "LKR";
+    if (isLKR && !wasLKR) {
+      setMinSalary((p) => p * 300);
+      setMaxSalary((p) => p * 300);
+    } else if (!isLKR && wasLKR) {
+      setMinSalary((p) => Math.round(p / 300));
+      setMaxSalary((p) => Math.round(p / 300));
     }
-    setCurrency(currCode);
+    setCurrency(newCurr);
   };
 
-  const symbol = currency === "USD" ? "$" : "LKR ";
-  const sliderMax = currency === "USD" ? 300000 : 90000000;
-  const sliderMin = currency === "USD" ? 50000 : 15000000;
-  const sliderStep = currency === "USD" ? 5000 : 1500000;
+  const symbol =
+    currency === "LKR"
+      ? "LKR "
+      : currency === "EUR"
+        ? "€"
+        : currency === "GBP"
+          ? "£"
+          : "$";
+  const isLKR = currency === "LKR";
+  const sliderMax = isLKR ? 90_000_000 : 300_000;
+  const sliderMin = isLKR ? 15_000_000 : 50_000;
+  const sliderStep = isLKR ? 1_500_000 : 5_000;
 
+  // ── Add/remove financial add-ons ──────────────────────────────────────
   const handleAddTag = (tag: string) => {
     const trimmed = tag.trim();
-    if (trimmed && !financialTags.includes(trimmed)) {
-      setFinancialTags([trimmed, ...financialTags]);
+    if (trimmed && !financialAddOns.includes(trimmed)) {
+      setFinancialAddOns((prev) => [trimmed, ...prev]);
       setNewTagInput("");
     }
   };
 
+  // ── AI generate ───────────────────────────────────────────────────────
   const handleAiGenerateClick = async () => {
     setIsAiGenerating(true);
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    await new Promise((r) => setTimeout(r, 1500));
     setIsAiGenerating(false);
     setShowAiModal(true);
   };
 
+  // ── Build patch ───────────────────────────────────────────────────────
+  const buildPatch = (): Partial<JobDraft> => ({
+    currency,
+    salary_min: minSalary,
+    salary_max: maxSalary,
+    performance_bonus: performanceBonus,
+    signing_bonus: signingBonus,
+    stock_options: stockOptions,
+    financial_add_ons: financialAddOns,
+  });
+
+  // ── Save handlers ─────────────────────────────────────────────────────
   const handleNext = async () => {
     setIsProcessing(true);
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-
-    // Save to Local Storage
-    try {
-      const existing = localStorage.getItem(LS_KEY);
-      const data = existing ? JSON.parse(existing) : {};
-      data.compensation = buildCompPayload();
-      localStorage.setItem(LS_KEY, JSON.stringify(data));
-    } catch (e) {
-      console.error("Failed to save compensation", e);
-    }
-
+    await new Promise((r) => setTimeout(r, 1800));
+    saveDraft(buildPatch());
     setIsSaved(true);
-    setTimeout(() => router.push("/users/system/jobs/create/preview"), 1000);
+    setTimeout(() => router.push("/users/system/jobs/create/preview"), 900);
   };
 
   const handleSaveDraft = async () => {
     setIsProcessing(true);
-    await new Promise((resolve) => setTimeout(resolve, 1400));
-
-    try {
-      const existing = localStorage.getItem(LS_KEY);
-      const data = existing ? JSON.parse(existing) : {};
-      data.compensation = buildCompPayload();
-      localStorage.setItem(LS_KEY, JSON.stringify(data));
-    } catch (e) {
-      console.error("Failed to save draft", e);
-    }
-
+    await new Promise((r) => setTimeout(r, 1200));
+    saveDraft({ ...buildPatch(), status: "DRAFT" as any });
     setIsSaved(true);
     setTimeout(() => router.push("/users/system/jobs/active_jobs"), 800);
   };
 
   return (
     <div className="min-h-screen flex flex-col mesh-gradient rounded-3xl no-scrollbar bg-[var(--background)]">
-      {/* --- Full Page Loader --- */}
-
+      {/* Processing overlay */}
       <AnimatePresence>
         {isProcessing && (
           <motion.div
@@ -175,27 +147,24 @@ export default function CompensationPage() {
             className="fixed inset-0 z-[200] flex items-center justify-center bg-[var(--background)]/40 backdrop-blur-md"
           >
             <div className="flex flex-col items-center gap-6">
-              {/* The Loader Ring */}
               <div className="relative flex items-center justify-center">
                 <AnimatePresence mode="wait">
                   {!isSaved ? (
                     <motion.div
-                      key="loading-spinner"
+                      key="spinner"
                       initial={{ opacity: 0, scale: 0.8 }}
                       animate={{ opacity: 1, scale: 1 }}
                       exit={{ opacity: 0, scale: 0.8 }}
                       className="relative"
                     >
-                      {/* Outer Spinning Ring */}
                       <div className="w-20 h-20 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
-                      {/* Inner Icon */}
                       <span className="material-symbols-outlined absolute inset-0 flex items-center justify-center text-primary text-2xl animate-pulse">
                         database
                       </span>
                     </motion.div>
                   ) : (
                     <motion.div
-                      key="saved-check"
+                      key="check"
                       initial={{ opacity: 0, scale: 0.5, rotate: -45 }}
                       animate={{ opacity: 1, scale: 1, rotate: 0 }}
                       className="w-20 h-20 bg-primary rounded-full flex items-center justify-center shadow-glow"
@@ -207,15 +176,13 @@ export default function CompensationPage() {
                   )}
                 </AnimatePresence>
               </div>
-
-              {/* Status Text */}
               <div className="text-center">
                 <motion.h3
                   animate={{ opacity: [0.5, 1, 0.5] }}
                   transition={{ repeat: Infinity, duration: 2 }}
                   className="text-[var(--text-main)] font-bold text-lg tracking-tight"
                 >
-                  {isSaved ? "Protocol Secured" : "Synchronizing Details"}
+                  {isSaved ? "Compensation Saved" : "Saving Compensation..."}
                 </motion.h3>
                 <p className="text-[var(--text-muted)] text-sm font-medium mt-1">
                   {isSaved
@@ -228,7 +195,7 @@ export default function CompensationPage() {
         )}
       </AnimatePresence>
 
-      {/* --- AI Suggestions Modal --- */}
+      {/* AI Suggestions Modal */}
       <AnimatePresence>
         {showAiModal && (
           <div className="fixed inset-0 z-[150] flex items-center justify-center p-4">
@@ -252,7 +219,7 @@ export default function CompensationPage() {
                 Add market-standard incentives.
               </p>
               <div className="space-y-3">
-                {aiSuggestions.map((s: string) => (
+                {aiSuggestions.map((s) => (
                   <button
                     key={s}
                     onClick={() => {
@@ -279,12 +246,13 @@ export default function CompensationPage() {
         )}
       </AnimatePresence>
 
+      {/* Step header */}
       <header className="w-full px-4 pt-6 md:pt-10">
         <div className="max-w-3xl mx-auto flex items-center justify-between relative px-2">
           <StepItem icon="check_circle" label="Details" completed />
-          <StepLine active />
+          <StepLine />
           <StepItem icon="check_circle" label="Benefits" completed />
-          <StepLine active />
+          <StepLine />
           <StepItem icon="payments" label="Compensation" active />
           <StepLine />
           <StepItem icon="visibility" label="Preview" />
@@ -293,13 +261,14 @@ export default function CompensationPage() {
 
       <main className="flex-1 max-w-7xl mx-auto w-full px-4 py-8 md:py-12">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start pb-32 lg:pb-0">
+          {/* Form */}
           <div className="col-span-1 lg:col-span-8">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               className="glass-panel rounded-[2rem] p-6 md:p-10 shadow-xl"
             >
-              <div className="mb-10 border-b border-[var(--border-subtle)] pb-2">
+              <div className="mb-10 border-b border-[var(--border-subtle)] pb-4">
                 <h1 className="text-2xl md:text-3xl font-bold text-[var(--text-main)] mb-2 tracking-tight">
                   Compensation & Financials
                 </h1>
@@ -309,32 +278,35 @@ export default function CompensationPage() {
               </div>
 
               <div className="space-y-12">
-                {/* Salary Range Section */}
+                {/* Salary Range */}
                 <div>
                   <label className="block text-xs font-bold text-[var(--text-muted)] mb-6 ml-1">
                     Salary Range
                   </label>
                   <div className="p-6 md:p-8 bg-[var(--input-bg)] border border-[var(--border-subtle)] rounded-[2rem] space-y-10">
                     <div className="flex flex-col md:flex-row gap-6">
-                      {/* --- CUSTOM CURRENCY DROPDOWN --- */}
+                      {/* Currency */}
                       <div className="w-full md:flex-1">
                         <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider ml-1">
                           Currency
                         </span>
                         <ModernDropdown
-                          selected={currency === "USD" ? "USD" : "LKR"}
+                          selected={currency}
                           setSelected={handleCurrencyChange}
-                          options={["USD", "LKR"]}
+                          options={currencies}
                         />
                       </div>
 
+                      {/* Min */}
                       <div className="flex-[2] space-y-2">
                         <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider ml-1">
                           Min Base
                         </span>
                         <div className="relative">
                           <span
-                            className={`absolute ${currency === "LKR" ? "left-3 text-[10px]" : "left-4 text-sm"} top-1/2 -translate-y-1/2 text-primary font-bold`}
+                            className={`absolute ${
+                              isLKR ? "left-3 text-[10px]" : "left-4 text-sm"
+                            } top-1/2 -translate-y-1/2 text-primary font-bold`}
                           >
                             {symbol}
                           </span>
@@ -342,18 +314,23 @@ export default function CompensationPage() {
                             type="text"
                             value={minSalary.toLocaleString()}
                             readOnly
-                            className={`premium-input rounded-xl py-3 ${currency === "LKR" ? "pl-14" : "pl-8"} pr-4 text-lg font-bold bg-[var(--surface)] w-full`}
+                            className={`premium-input rounded-xl py-3 ${
+                              isLKR ? "pl-14" : "pl-8"
+                            } pr-4 text-lg font-bold bg-[var(--surface)] w-full`}
                           />
                         </div>
                       </div>
 
+                      {/* Max */}
                       <div className="flex-[2] space-y-2">
                         <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider ml-1">
                           Max Base
                         </span>
                         <div className="relative">
                           <span
-                            className={`absolute ${currency === "LKR" ? "left-3 text-[10px]" : "left-4 text-sm"} top-1/2 -translate-y-1/2 text-primary font-bold`}
+                            className={`absolute ${
+                              isLKR ? "left-3 text-[10px]" : "left-4 text-sm"
+                            } top-1/2 -translate-y-1/2 text-primary font-bold`}
                           >
                             {symbol}
                           </span>
@@ -361,13 +338,15 @@ export default function CompensationPage() {
                             type="text"
                             value={maxSalary.toLocaleString()}
                             readOnly
-                            className={`premium-input rounded-xl py-3 ${currency === "LKR" ? "pl-14" : "pl-8"} pr-4 text-lg font-bold bg-[var(--surface)] w-full`}
+                            className={`premium-input rounded-xl py-3 ${
+                              isLKR ? "pl-14" : "pl-8"
+                            } pr-4 text-lg font-bold bg-[var(--surface)] w-full`}
                           />
                         </div>
                       </div>
                     </div>
 
-                    {/* Salary Slider */}
+                    {/* Dual Slider */}
                     <div className="px-4">
                       <div className="relative h-2 bg-primary/10 rounded-full">
                         <input
@@ -405,8 +384,17 @@ export default function CompensationPage() {
                         <div
                           className="absolute h-full bg-primary rounded-full transition-all duration-75"
                           style={{
-                            left: `${((minSalary - sliderMin) / (sliderMax - sliderMin)) * 100}%`,
-                            right: `${100 - ((maxSalary - sliderMin) / (sliderMax - sliderMin)) * 100}%`,
+                            left: `${
+                              ((minSalary - sliderMin) /
+                                (sliderMax - sliderMin)) *
+                              100
+                            }%`,
+                            right: `${
+                              100 -
+                              ((maxSalary - sliderMin) /
+                                (sliderMax - sliderMin)) *
+                                100
+                            }%`,
                           }}
                         />
                       </div>
@@ -424,7 +412,7 @@ export default function CompensationPage() {
                   </div>
                 </div>
 
-                {/* Toggles */}
+                {/* Bonus & Equity Toggles */}
                 <div className="space-y-4">
                   <label className="block text-xs font-bold text-[var(--text-muted)] mb-2 ml-1">
                     Bonus & Equity
@@ -433,28 +421,22 @@ export default function CompensationPage() {
                     icon="trending_up"
                     title="Performance Bonus"
                     desc="Annual reward based on milestones"
-                    enabled={toggles.bonus}
-                    onClick={() =>
-                      setToggles({ ...toggles, bonus: !toggles.bonus })
-                    }
+                    enabled={performanceBonus}
+                    onClick={() => setPerformanceBonus((v) => !v)}
                   />
                   <ToggleRow
                     icon="verified"
                     title="Signing Bonus"
                     desc="One-time joining bonus"
-                    enabled={toggles.signing}
-                    onClick={() =>
-                      setToggles({ ...toggles, signing: !toggles.signing })
-                    }
+                    enabled={signingBonus}
+                    onClick={() => setSigningBonus((v) => !v)}
                   />
                   <ToggleRow
                     icon="pie_chart"
                     title="Stock Options"
                     desc="Standard 4-year vesting"
-                    enabled={toggles.equity}
-                    onClick={() =>
-                      setToggles({ ...toggles, equity: !toggles.equity })
-                    }
+                    enabled={stockOptions}
+                    onClick={() => setStockOptions((v) => !v)}
                   />
                 </div>
 
@@ -491,7 +473,7 @@ export default function CompensationPage() {
                               Scanning Market Trends
                             </p>
                             <p className="text-[9px] text-[var(--text-muted)] font-medium">
-                              Identifying high-retention Benchmarking Market...
+                              Benchmarking market rates...
                             </p>
                           </div>
                         </motion.div>
@@ -517,9 +499,9 @@ export default function CompensationPage() {
 
                     <div className="p-6">
                       <AnimatePresence>
-                        {financialTags.length > 0 && (
+                        {financialAddOns.length > 0 && (
                           <div className="flex flex-wrap gap-2 mb-6">
-                            {financialTags.map((tag) => (
+                            {financialAddOns.map((tag) => (
                               <motion.div
                                 key={tag}
                                 initial={{ opacity: 0, scale: 0.8 }}
@@ -530,8 +512,8 @@ export default function CompensationPage() {
                                 {tag}
                                 <span
                                   onClick={() =>
-                                    setFinancialTags(
-                                      financialTags.filter((t) => t !== tag),
+                                    setFinancialAddOns((prev) =>
+                                      prev.filter((t) => t !== tag),
                                     )
                                   }
                                   className="material-symbols-outlined text-sm cursor-pointer opacity-70 hover:opacity-100"
@@ -543,7 +525,6 @@ export default function CompensationPage() {
                           </div>
                         )}
                       </AnimatePresence>
-
                       <div className="flex gap-3">
                         <input
                           value={newTagInput}
@@ -575,7 +556,7 @@ export default function CompensationPage() {
               animate={{ opacity: 1, x: 0 }}
               className="glass-panel rounded-[2rem] p-8 shadow-glow relative overflow-hidden border-primary/10"
             >
-              <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 blur-[60px] rounded-full pointer-events-none"></div>
+              <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 blur-[60px] rounded-full pointer-events-none" />
               <div className="relative z-10 space-y-8">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary to-accent flex items-center justify-center text-white shadow-lg">
@@ -616,10 +597,11 @@ export default function CompensationPage() {
       <footer className="mt-auto border-t border-[var(--border-subtle)] bg-[var(--background)]/80 backdrop-blur-md z-[90]">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           <button
-            className="flex items-center gap-2 text-[var(--text-muted)] font-bold text-sm"
+            className="flex items-center gap-2 text-[var(--text-muted)] font-bold text-sm hover:text-[var(--text-main)] transition-all"
             onClick={() => router.push("/users/system/jobs/create/benefits")}
           >
-            <span className="material-symbols-outlined">arrow_back</span>Back
+            <span className="material-symbols-outlined">arrow_back</span>
+            Back
           </button>
           <div className="flex gap-4">
             <button
@@ -639,7 +621,6 @@ export default function CompensationPage() {
         </div>
       </footer>
 
-      {/* Slider Styling */}
       <style jsx>{`
         .slider-thumb-visible::-webkit-slider-thumb {
           pointer-events: all;
@@ -651,31 +632,34 @@ export default function CompensationPage() {
           cursor: pointer;
           appearance: none;
           box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-          transition: transform 0.1s ease;
         }
       `}</style>
     </div>
   );
 }
 
-// --- Helper Components ---
-
-function ModernDropdown({ label, selected, setSelected, options }: any) {
+// ---------------------------------------------------------------------------
+// Sub-components
+// ---------------------------------------------------------------------------
+function ModernDropdown({
+  selected,
+  setSelected,
+  options,
+}: {
+  selected: string;
+  setSelected: (v: string) => void;
+  options: string[];
+}) {
   const [isOpen, setIsOpen] = useState(false);
   return (
-    <div className="relative w-full">
+    <div className="relative w-full mt-1">
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="w-full bg-[var(--surface)] border border-[var(--border-subtle)] rounded-xl px-4 h-[52px] flex items-center justify-between gap-3 hover:border-primary/50 transition-all shadow-sm"
       >
-        <div className="flex flex-col items-start">
-          <span className="text-[9px] font-bold text-[var(--text-muted)] opacity-60 leading-none mb-1 uppercase tracking-tight">
-            {label}
-          </span>
-          <span className="text-xs font-bold text-[var(--text-main)]">
-            {selected}
-          </span>
-        </div>
+        <span className="text-xs font-bold text-[var(--text-main)]">
+          {selected}
+        </span>
         <motion.span
           animate={{ rotate: isOpen ? 180 : 0 }}
           className="material-symbols-outlined text-primary text-xl"
@@ -685,51 +669,69 @@ function ModernDropdown({ label, selected, setSelected, options }: any) {
       </button>
       <AnimatePresence>
         {isOpen && (
-          <motion.div
-            initial={{ opacity: 0, y: -5 }}
-            animate={{ opacity: 1, y: 5 }}
-            exit={{ opacity: 0, y: -5 }}
-            className="absolute left-0 right-0 mt-2 glass-panel rounded-2xl border border-[var(--glass-border)] shadow-2xl overflow-hidden backdrop-blur-3xl p-1 z-[999]"
-          >
-            {options.map((opt: string) => (
-              <button
-                key={opt}
-                onClick={() => {
-                  setSelected(opt);
-                  setIsOpen(false);
-                }}
-                className={`w-full text-left px-4 py-3 text-xs font-semibold rounded-xl transition-colors ${
-                  selected === opt
-                    ? "text-primary bg-primary/10"
-                    : "text-[var(--text-main)] hover:bg-primary/5"
-                }`}
-              >
-                {opt}
-              </button>
-            ))}
-          </motion.div>
+          <>
+            <motion.div
+              initial={{ opacity: 0, y: -5 }}
+              animate={{ opacity: 1, y: 5 }}
+              exit={{ opacity: 0, y: -5 }}
+              className="absolute left-0 right-0 mt-2 glass-panel rounded-2xl border border-[var(--glass-border)] shadow-2xl overflow-hidden backdrop-blur-3xl p-1 z-[999]"
+            >
+              {options.map((opt) => (
+                <button
+                  key={opt}
+                  onClick={() => {
+                    setSelected(opt);
+                    setIsOpen(false);
+                  }}
+                  className={`w-full text-left px-4 py-3 text-xs font-semibold rounded-xl transition-colors ${
+                    selected === opt
+                      ? "text-primary bg-primary/10"
+                      : "text-[var(--text-main)] hover:bg-primary/5"
+                  }`}
+                >
+                  {opt}
+                </button>
+              ))}
+            </motion.div>
+            <div
+              className="fixed inset-0 z-[100]"
+              onClick={() => setIsOpen(false)}
+            />
+          </>
         )}
       </AnimatePresence>
-      {isOpen && (
-        <div
-          className="fixed inset-0 z-[100]"
-          onClick={() => setIsOpen(false)}
-        />
-      )}
     </div>
   );
 }
 
-function StepItem({ icon, label, active = false, completed = false }: any) {
+function StepItem({
+  icon,
+  label,
+  active = false,
+  completed = false,
+}: {
+  icon: string;
+  label: string;
+  active?: boolean;
+  completed?: boolean;
+}) {
   return (
     <div className="flex flex-col items-center gap-2 z-10">
       <div
-        className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${active ? "bg-primary text-white shadow-glow ring-4 ring-primary/10" : completed ? "bg-primary/20 text-primary border border-primary/10" : "bg-[var(--surface)] border border-[var(--border-subtle)] text-[var(--text-muted)] opacity-50"}`}
+        className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
+          active
+            ? "bg-primary text-white shadow-glow ring-4 ring-primary/10"
+            : completed
+              ? "bg-primary/20 text-primary border border-primary/10"
+              : "bg-[var(--surface)] border border-[var(--border-subtle)] text-[var(--text-muted)] opacity-50"
+        }`}
       >
         <span className="material-symbols-outlined text-xl">{icon}</span>
       </div>
       <span
-        className={`text-[10px] font-bold hidden sm:block tracking-tight ${active ? "text-primary" : "text-[var(--text-muted)]"}`}
+        className={`text-[10px] font-bold hidden sm:block tracking-tight ${
+          active ? "text-primary" : "text-[var(--text-muted)]"
+        }`}
       >
         {label}
       </span>
@@ -737,18 +739,32 @@ function StepItem({ icon, label, active = false, completed = false }: any) {
   );
 }
 
-function StepLine({ active = false }: any) {
+function StepLine() {
   return (
     <div className="flex-1 h-[1px] bg-[var(--border-subtle)] mx-2 translate-y-[-14px]" />
   );
 }
 
-function ToggleRow({ icon, title, desc, enabled, onClick }: any) {
+function ToggleRow({
+  icon,
+  title,
+  desc,
+  enabled,
+  onClick,
+}: {
+  icon: string;
+  title: string;
+  desc: string;
+  enabled: boolean;
+  onClick: () => void;
+}) {
   return (
     <div className="flex items-center justify-between p-5 bg-[var(--input-bg)] border border-[var(--border-subtle)] rounded-2xl">
       <div className="flex items-center gap-4">
         <span
-          className={`material-symbols-outlined ${enabled ? "text-primary" : "text-slate-400"} text-xl transition-colors`}
+          className={`material-symbols-outlined ${
+            enabled ? "text-primary" : "text-slate-400"
+          } text-xl transition-colors`}
         >
           {icon}
         </span>
@@ -764,7 +780,9 @@ function ToggleRow({ icon, title, desc, enabled, onClick }: any) {
       <button
         type="button"
         onClick={onClick}
-        className={`w-11 h-6 rounded-full transition-colors relative flex items-center px-1 ${enabled ? "bg-primary shadow-glow" : "bg-black/20 dark:bg-white/10"}`}
+        className={`w-11 h-6 rounded-full transition-colors relative flex items-center px-1 ${
+          enabled ? "bg-primary shadow-glow" : "bg-black/20 dark:bg-white/10"
+        }`}
       >
         <motion.div
           animate={{ x: enabled ? 20 : 0 }}
@@ -775,7 +793,13 @@ function ToggleRow({ icon, title, desc, enabled, onClick }: any) {
   );
 }
 
-function MarketBenchmark({ location, range }: any) {
+function MarketBenchmark({
+  location,
+  range,
+}: {
+  location: string;
+  range: string;
+}) {
   return (
     <div className="p-4 bg-[var(--input-bg)] rounded-xl border border-[var(--border-subtle)]">
       <p className="text-xs font-bold text-[var(--text-main)] mb-1">

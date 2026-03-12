@@ -16,7 +16,7 @@ const navItems = [
   { label: "Candidates", href: "/users/system/candidates/all_candidates" },
   { label: "Reports", href: "/users/system/reports" },
   { label: "Templates", href: "/users/system/templates" },
-  { label: "Settings", href: "/users/system/settings" },
+  { label: "Settings", href: "/users/system/settings/jobs" },
 ];
 
 export default function Navbar({ onMenuClick }: { onMenuClick: () => void }) {
