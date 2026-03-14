@@ -11,6 +11,7 @@ import {
   Candidate,
   CandidateStatus,
   CandidateSource,
+  AddCandidateFormData,
 } from "@/types/candidate_types";
 
 const containerVariants: Variants = {
@@ -30,7 +31,7 @@ const itemVariants: Variants = {
   },
 };
 
-const initialMockData: (Partial<Candidate> & { id: string })[] = [];
+const initialMockData: (Partial<AddCandidateFormData> & { id: string })[] = [];
 
 export default function AllCandidatesPage() {
   const router = useRouter();
@@ -39,7 +40,9 @@ export default function AllCandidatesPage() {
 
   // Dynamic Data Store
   const [candidates, setCandidates] =
-    useState<(Partial<Candidate> & { id: string })[]>(initialMockData);
+    useState<(Partial<AddCandidateFormData> & { id: string })[]>(
+      initialMockData,
+    );
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSkill, setSelectedSkill] = useState("All Skills");
   const [selectedStatus, setSelectedStatus] = useState("All Statuses");
@@ -51,25 +54,35 @@ export default function AllCandidatesPage() {
       try {
         const storedCandidates = JSON.parse(rawData);
         if (Array.isArray(storedCandidates)) {
-          // Map nested or flat structure to Candidate format
           const mappedCandidates = storedCandidates.map((item: any) => {
             return {
               id:
                 item.id ||
                 `CAND-${Math.random().toString(36).substr(2, 9).toUpperCase()}`,
-              firstName: item.firstName || item.step1?.firstName || "",
-              lastName: item.lastName || item.step1?.lastName || "",
-              email: item.email || item.step1?.email || "",
-              phone: item.phone || item.step1?.phone || "",
-              country: item.country || item.step1?.country || "—",
-              status:
-                item.status || item.step2?.status || CandidateStatus.ACTIVE,
+              step1: {
+                firstName: item.step1?.firstName || item.firstName || "",
+                lastName: item.step1?.lastName || item.lastName || "",
+                email: item.step1?.email || item.email || "",
+                phone: item.step1?.phone || item.phone || "",
+                country: item.step1?.country || item.country || "—",
+                source:
+                  item.step1?.source || item.source || CandidateSource.Other,
+                portfolioUrl: item.step1?.portfolioUrl || "",
+              },
               profilePhotoUrl:
                 item.profilePhotoUrl ||
                 item.step1?.profilePhotoUrl ||
                 item.step1?.profilePhoto ||
                 "",
-              skills: item.skills || item.step3?.skills || [],
+              step2: {
+                status:
+                  item.step2?.status || item.status || CandidateStatus.Active,
+                availabilityStatus:
+                  item.step2?.availabilityStatus || "I don't know",
+              },
+              step3: {
+                skills: item.step3?.skills || item.skills || [],
+              },
             };
           });
           setCandidates(mappedCandidates);
@@ -82,10 +95,10 @@ export default function AllCandidatesPage() {
 
   const filteredCandidates = candidates.filter((c: any) => {
     // Safety: ensure we have searchable strings
-    const fName = (c.firstName || "").toLowerCase();
-    const lName = (c.lastName || "").toLowerCase();
+    const fName = (c.step1?.firstName || "").toLowerCase();
+    const lName = (c.step1?.lastName || "").toLowerCase();
     const fullName = `${fName} ${lName}`.trim();
-    const email = (c.email || "").toLowerCase();
+    const email = (c.step1?.email || "").toLowerCase();
 
     const searchLower = searchQuery.toLowerCase();
 
@@ -96,7 +109,7 @@ export default function AllCandidatesPage() {
 
     const matchesSkill =
       selectedSkill === "All Skills" ||
-      c.skills?.some((s: any) => {
+      c.step3?.skills?.some((s: any) => {
         const skillName = typeof s === "string" ? s : s?.skillName;
         return skillName === selectedSkill;
       });
@@ -104,16 +117,16 @@ export default function AllCandidatesPage() {
     // Map selected label to enum value for correct filtering
     const statusMap: Record<string, string> = {
       "All Statuses": "all",
-      Active: CandidateStatus.ACTIVE,
-      Passive: CandidateStatus.PASSIVE,
-      Placed: CandidateStatus.PLACED,
-      Blacklisted: CandidateStatus.BLACKLISTED,
-      Archived: CandidateStatus.ARCHIVED,
+      Active: CandidateStatus.Active,
+      Passive: CandidateStatus.Passive,
+      Placed: CandidateStatus.Placed,
+      Blacklisted: CandidateStatus.Blacklisted,
+      Archived: CandidateStatus.Archived,
     };
 
     const matchesStatus =
       selectedStatus === "All Statuses" ||
-      c.status === statusMap[selectedStatus];
+      c.step2?.status === statusMap[selectedStatus];
 
     return matchesSearch && matchesSkill && matchesStatus;
   });
@@ -281,7 +294,7 @@ export default function AllCandidatesPage() {
                     </tr>
                   </thead>
                   <tbody className="">
-                    {filteredCandidates.map((candidate) => (
+                    {filteredCandidates?.map((candidate) => (
                       <motion.tr
                         key={candidate.id}
                         whileHover={{
@@ -312,11 +325,8 @@ export default function AllCandidatesPage() {
                             </button>
                             <div className="size-10 rounded-xl border border-primary/20 p-0.5 overflow-hidden bg-(--surface) shadow-sm">
                               <Image
-                                src={
-                                  candidate.profilePhotoUrl ||
-                                  "/images/avatar-img/avatar-1.jpg"
-                                }
-                                alt={`${candidate.firstName} ${candidate.lastName}`}
+                                src={"/images/avatar-img/avatar-1.jpg"}
+                                alt={`${candidate?.step1?.firstName} ${candidate?.step1?.lastName}`}
                                 width={40}
                                 height={40}
                                 className="rounded-lg object-cover w-9 h-9"
@@ -324,7 +334,7 @@ export default function AllCandidatesPage() {
                             </div>
                             <div>
                               <p className="font-bold text-(--text-main) group-hover:text-primary transition-colors">
-                                {candidate.firstName}
+                                {candidate?.step1?.firstName}
                               </p>
                               <p className="text-[10px] font-bold text-(--text-muted) uppercase tracking-widest">
                                 {candidate.id}
@@ -334,27 +344,27 @@ export default function AllCandidatesPage() {
                         </td>
                         <td className="px-8 py-6">
                           <p className="font-bold text-(--text-main) group-hover:text-primary transition-colors">
-                            {candidate.lastName}
+                            {candidate?.step1?.lastName}
                           </p>
                         </td>
                         <td className="px-8 py-6">
                           <p className="text-xs font-bold text-(--text-main) group-hover:text-primary transition-colors text-center">
-                            {candidate.email}
+                            {candidate?.step1?.email}
                           </p>
                         </td>
                         <td className="px-8 py-6">
                           <p className="text-xs font-bold text-(--text-main) text-center">
-                            {candidate.phone || "—"}
+                            {candidate?.step1?.phone || "—"}
                           </p>
                         </td>
                         <td className="px-8 py-6">
                           <p className="text-xs font-bold text-(--text-main) text-center">
-                            {candidate.country}
+                            {candidate?.step1?.country}
                           </p>
                         </td>
                         <td className="px-8 py-6">
                           <div className="flex flex-col items-center gap-2">
-                            <StatusBadge status={candidate.status} />
+                            <StatusBadge status={candidate?.step2?.status} />
                           </div>
                         </td>
                         <td className="px-8 py-6">
@@ -436,35 +446,35 @@ export default function AllCandidatesPage() {
 
 function StatusBadge({ status }: { status?: CandidateStatus | string }) {
   const configs: any = {
-    [CandidateStatus.ACTIVE]: {
+    [CandidateStatus.Active]: {
       bg: "bg-emerald-500/10",
       text: "text-emerald-500",
       border: "border-emerald-500/20",
       dot: "bg-emerald-500",
       pulse: true,
     },
-    [CandidateStatus.PLACED]: {
+    [CandidateStatus.Placed]: {
       bg: "bg-blue-500/10",
       text: "text-blue-500",
       border: "border-blue-500/20",
       dot: "bg-blue-500",
       pulse: false,
     },
-    [CandidateStatus.ARCHIVED]: {
+    [CandidateStatus.Archived]: {
       bg: "bg-slate-500/10",
       text: "text-slate-500",
       border: "border-slate-500/20",
       dot: "bg-slate-500",
       pulse: false,
     },
-    [CandidateStatus.PASSIVE]: {
+    [CandidateStatus.Passive]: {
       bg: "bg-amber-500/10",
       text: "text-amber-500",
       border: "border-amber-500/20",
       dot: "bg-amber-500",
       pulse: false,
     },
-    [CandidateStatus.BLACKLISTED]: {
+    [CandidateStatus.Blacklisted]: {
       bg: "bg-red-500/10",
       text: "text-red-500",
       border: "border-red-500/20",
@@ -473,8 +483,8 @@ function StatusBadge({ status }: { status?: CandidateStatus | string }) {
     },
   };
 
-  const displayStatus = status || CandidateStatus.ACTIVE;
-  const config = configs[displayStatus] || configs[CandidateStatus.ACTIVE];
+  const displayStatus = status || CandidateStatus.Active;
+  const config = configs[displayStatus] || configs[CandidateStatus.Active];
 
   return (
     <span

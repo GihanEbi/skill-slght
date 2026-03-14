@@ -16,6 +16,8 @@ export enum CandidateStatus {
   Active = "ACTIVE",
   Placed = "PLACED",
   Archived = "ARCHIVED",
+  Passive = "PASSIVE",
+  Blacklisted = "BLACKLISTED",
 }
 
 export enum CandidateSource {
@@ -173,4 +175,51 @@ export interface CertificationFile {
   updated_at: Timestamp;
   created_by: UUID;
   updated_by: UUID;
+}
+
+export interface AddCandidateFormData {
+  id?: string;
+  step1: {
+    profilePhotoUrl?: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone?: string;
+    whatsapp?: string;
+    country: string;
+    city?: string;
+    timezone?: string;
+    willingToRelocate?: boolean;
+    linkedInUrl?: string;
+    portfolioUrl?: string;
+    source: CandidateSource | string;
+    sourceDetail?: string;
+  };
+  step2: {
+    currentJobTitle?: string;
+    currentCompany?: string;
+    currentSalary?: number;
+    currentSalaryCurrency?: string;
+    availabilityStatus: string;
+    status: CandidateStatus | string;
+  };
+  step3: {
+    skills: any[];
+  };
+  step4: {
+    workExperience: any[];
+  };
+  step5: {
+    education: any[];
+  };
+  step6: {
+    certifications: any[];
+    portfolioFiles: any[];
+  };
+  step7: {
+    internalNotes: string;
+    gdprConsent: boolean;
+    gdprConsentDate: string;
+    tags: string[];
+  };
 }

@@ -126,6 +126,104 @@ export function createBlankDraft(): JobDraft {
     updated_at: now,
   };
 }
+// ==========================================
+// Job Templates Mock & Service
+// ==========================================
+
+export interface ExtendedJobTemplate {
+  id: string;
+  name: string;
+  is_active: boolean;
+  category: string;
+  icon: string;
+  usage: number;
+  stages: string[];
+  description: string;
+  created_at: string;
+  updated_at: string;
+}
+
+const mockJobTemplates: JobDraft[] = [
+  {
+    title: "Senior Blockchain Engineer",
+    department_id: "DEPT-101",
+    department_name: "Engineering",
+    location: "Berlin, Germany",
+    work_arrangement: WorkArrangement.Remote,
+    employment_type: EmploymentType.FullTime,
+    description:
+      "We are looking for a Senior Blockchain Engineer to lead the development of our L2 scaling solutions. You will be responsible for smart contract architecture, protocol security, and optimizing zero-knowledge proofs.",
+    skill_ids: ["SK-1", "SK-2", "SK-3"],
+    skill_names: ["Rust", "Solidity", "Cryptography", "Go"],
+    template_id: "TPL-001",
+    benefit_ids: ["BEN-1", "BEN-2"],
+    benefit_names: ["Premium Health Insurance", "Home Office Setup"],
+    custom_perks: [
+      "Annual Web3 Conference Ticket",
+      "Crypto hardware wallet allowance",
+    ],
+    work_life_flexible_hours: true,
+    work_life_remote_first: true,
+    work_life_mental_health_days: true,
+    currency: "USD",
+    salary_min: 160000,
+    salary_max: 210000,
+    performance_bonus: true,
+    signing_bonus: true,
+    stock_options: true,
+    financial_add_ons: ["Token Token Allocation", "Quarterly Protocol Grants"],
+    is_internal: false,
+    external_publisher_ids: ["PUB-1", "PUB-2"],
+    external_publisher_names: ["LinkedIn", "Web3Jobs"],
+    hiring_manager_ids: ["HM-001"],
+    hiring_manager_names: ["Sarah Chen"],
+    save_as_template: true,
+    status: JobStatus.Draft,
+    created_at: "2024-03-10T10:00:00Z",
+    updated_at: "2024-03-12T14:30:00Z",
+  },
+  {
+    title: "Product Marketing Manager",
+    department_id: "DEPT-102",
+    department_name: "Marketing",
+    location: "New York, USA",
+    work_arrangement: WorkArrangement.Hybrid,
+    employment_type: EmploymentType.FullTime,
+    description:
+      "Join our growth team to drive adoption of our enterprise suite. You will craft go-to-market strategies, manage competitive positioning, and lead product launches.",
+    skill_ids: ["SK-4", "SK-5"],
+    skill_names: ["Go-to-Market Strategy", "Copywriting", "Data Analytics"],
+    template_id: null,
+    benefit_ids: ["BEN-1", "BEN-3"],
+    benefit_names: ["Premium Health Insurance", "Learning Stipend"],
+    custom_perks: ["Gym Membership"],
+    work_life_flexible_hours: true,
+    work_life_remote_first: false,
+    work_life_mental_health_days: false,
+    currency: "USD",
+    salary_min: 110000,
+    salary_max: 140000,
+    performance_bonus: true,
+    signing_bonus: false,
+    stock_options: true,
+    financial_add_ons: ["Annual Performance Bonus"],
+    is_internal: true,
+    external_publisher_ids: [],
+    external_publisher_names: [],
+    hiring_manager_ids: ["HM-002", "HM-003"],
+    hiring_manager_names: ["Marcus Thorne", "Elena Voss"],
+    save_as_template: false,
+    status: JobStatus.Draft,
+    created_at: "2024-03-11T09:15:00Z",
+    updated_at: "2024-03-11T09:15:00Z",
+  },
+];
+
+export const fetchRichJobTemplates = async (): Promise<JobDraft[]> => {
+  // Simulate network delay
+  await new Promise((resolve) => setTimeout(resolve, 800));
+  return [...mockJobTemplates];
+};
 
 // ---------------------------------------------------------------------------
 // Draft CRUD (localStorage)

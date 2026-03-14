@@ -32,11 +32,11 @@ const initialData: AddCandidateFormData = {
     lastName: "",
     email: "",
     country: "",
-    source: CandidateSource.OTHER,
+    source: CandidateSource.Other,
   },
   step2: {
     availabilityStatus: "immediately",
-    status: CandidateStatus.ACTIVE,
+    status: CandidateStatus.Active,
   },
   step3: {
     skills: [],
@@ -93,7 +93,7 @@ export const AddCandidateProvider = ({ children }: { children: ReactNode }) => {
         willingToRelocate: candidate.willingToRelocate || false,
         linkedInUrl: candidate.linkedInUrl || "",
         portfolioUrl: candidate.portfolioUrl || "",
-        source: candidate.source || CandidateSource.OTHER,
+        source: candidate.source || CandidateSource.Other,
         sourceDetail: candidate.sourceDetail || "",
       },
       step2: {
@@ -102,7 +102,7 @@ export const AddCandidateProvider = ({ children }: { children: ReactNode }) => {
         currentSalary: candidate.currentSalary || 0,
         currentSalaryCurrency: candidate.currentSalaryCurrency || "USD",
         availabilityStatus: candidate.availabilityStatus || "immediately",
-        status: candidate.status || CandidateStatus.ACTIVE,
+        status: candidate.status || CandidateStatus.Active,
       },
       step3: { skills: candidate.skills || [] },
       step4: { workExperience: candidate.workExperience || [] },
