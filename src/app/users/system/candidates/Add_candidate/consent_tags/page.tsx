@@ -222,13 +222,13 @@ export default function ReviewStep() {
               items={[
                 {
                   label: "Resume Status",
-                  value: formData.step6.resume
+                  value: (formData.step6 as any).resume
                     ? "Encrypted & Loaded"
                     : "Missing",
                 },
                 {
                   label: "ID Verification",
-                  value: formData.step6.idProof ? "Supplied" : "Pending",
+                  value: (formData.step6 as any).idProof ? "Supplied" : "Pending",
                 },
                 { label: "GDPR Clause", value: "Signed & Timstamped" },
               ]}
