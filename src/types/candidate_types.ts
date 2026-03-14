@@ -213,6 +213,9 @@ export interface AddCandidateFormData {
     education: any[];
   };
   step6: {
+    resume?: any;
+    coverLetter?: any;
+    idProof?: any;
     certifications: any[];
     portfolioFiles: any[];
   };
