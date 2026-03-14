@@ -216,7 +216,7 @@ export default function ReviewStep() {
                 )
               }
             />
-            <ReviewCard
+            {/* <ReviewCard
               title="Evidence Pack"
               icon="verified"
               items={[
@@ -239,7 +239,7 @@ export default function ReviewStep() {
                   ),
                 )
               }
-            />
+            /> */}
           </div>
 
           <section className="glass-panel rounded-4xl p-10 border-(--border-subtle) space-y-8 bg-(--surface) shadow-sm">
