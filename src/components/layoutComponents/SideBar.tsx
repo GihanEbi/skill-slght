@@ -3,12 +3,17 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
+import type { SidebarItem } from "./sidebarConfig";
 
 interface SidebarProps {
   isCollapsed: boolean;
   setIsCollapsed: (val: boolean) => void;
   isMobileOpen: boolean;
   setIsMobileOpen: (val: boolean) => void;
+  /** Desktop nav items – section-specific links */
+  items: SidebarItem[];
+  /** Mobile nav items – full app navigation tree */
+  mobileItems: SidebarItem[];
 }
 
 export default function Sidebar({
@@ -16,6 +21,8 @@ export default function Sidebar({
   setIsCollapsed,
   isMobileOpen,
   setIsMobileOpen,
+  items,
+  mobileItems,
 }: SidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -26,33 +33,13 @@ export default function Sidebar({
     damping: 40,
   };
 
-  const navLinks = [
-    { icon: "grid_view", label: "Dashboard", href: "/users/system/dashboard" },
-    {
-      icon: "rocket_launch",
-      label: "Jobs",
-      href: "/users/system/jobs",
-      subItems: [
-        { label: "Create Job", href: "/users/system/jobs/create" },
-        { label: "Active Jobs", href: "/users/system/jobs/active" },
-      ],
-    },
-    {
-      icon: "diversity_3",
-      label: "Candidates",
-      subItems: [
-        { label: "All Candidates", href: "/users/system/candidates" },
-        { label: "Talent Pools", href: "/users/system/candidates/pools" },
-      ],
-    },
-  ];
-
   useEffect(() => {
     setIsMobileOpen(false);
   }, [pathname, setIsMobileOpen]);
 
   return (
     <>
+      {/* Mobile overlay backdrop */}
       <AnimatePresence>
         {isMobileOpen && (
           <motion.div
@@ -65,6 +52,7 @@ export default function Sidebar({
         )}
       </AnimatePresence>
 
+      {/* ── Desktop sidebar (sm+, hidden below sm) ── */}
       <motion.aside
         initial={false}
         animate={{
@@ -77,15 +65,14 @@ export default function Sidebar({
               : 0,
         }}
         transition={transitionSettings}
-        /* Removed overflow-hidden from here so button doesn't clip */
-        className={`fixed lg:relative top-0 left-0 h-full glass-panel border-r flex flex-col z-[60] group/sidebar`}
+        className="hidden sm:block fixed lg:relative top-0 left-0 h-full glass-panel border-r border-slate-500/10 flex flex-col bg-[var(--surface)] dark:bg-[#121d18] lg:bg-transparent group/sidebar"
       >
-        {/* Fix: Toggle Button positioned inside the border-right but slightly offset */}
+        {/* Toggle Button */}
         <motion.button
-          whileHover={{ scale: 1.1, transition: { duration: 0.2 } }}
+          whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.9 }}
           onClick={() => setIsCollapsed(!isCollapsed)}
-          className="hidden lg:flex absolute -right-4 top-4 w-8 h-8 bg-primary rounded-xl items-center justify-center text-white border-1 border-[var(--background)] z-[70] shadow-premium transition-colors"
+          className="hidden lg:flex absolute -right-4 top-4 w-8 h-8 bg-primary rounded-xl items-center justify-center text-white z-[70] shadow-premium transition-colors"
         >
           <motion.span
             animate={{ rotate: isCollapsed ? 180 : 0 }}
@@ -95,7 +82,6 @@ export default function Sidebar({
           </motion.span>
         </motion.button>
 
-        {/* Internal container with overflow-hidden to keep nav animations smooth */}
         <div className="flex flex-col h-full w-full overflow-hidden">
           {/* Search Bar */}
           <div className="px-4 mt-6 mb-4">
@@ -116,10 +102,88 @@ export default function Sidebar({
             </div>
           </div>
 
-          {/* Nav Links */}
+          {/* Section-specific nav items (desktop) */}
           <nav className="flex-1 px-4 space-y-2 overflow-y-auto custom-scrollbar overflow-x-hidden pt-2">
-            {navLinks.map((link) => (
-              <NavItem
+            {items.map((link) => (
+              <NavItemDesktop
+                key={link.label}
+                link={link}
+                pathname={pathname}
+                isCollapsed={isCollapsed}
+              />
+            ))}
+          </nav>
+
+          {/* Logout */}
+          <div className="p-4 mb-6 mt-auto">
+            <button
+              onClick={() => router.push("/auth/signin")}
+              className={`w-full flex items-center h-12 rounded-xl text-slate-500 hover:text-red-500 hover:bg-red-500/5 transition-all ${isCollapsed ? "justify-center" : "px-4 gap-4"}`}
+            >
+              <span className="material-symbols-outlined text-[26px]">
+                logout
+              </span>
+              {!isCollapsed && (
+                <span className="font-bold whitespace-nowrap">Logout</span>
+              )}
+            </button>
+          </div>
+        </div>
+      </motion.aside>
+
+      {/* ── Mobile sidebar (visible below lg when menu open) ── */}
+      <motion.aside
+        initial={false}
+        animate={{
+          width: isCollapsed && !isMobileOpen ? 80 : 288,
+          x:
+            typeof window !== "undefined" &&
+            window.innerWidth < 1024 &&
+            !isMobileOpen
+              ? "-100%"
+              : 0,
+        }}
+        transition={transitionSettings}
+        className="block lg:hidden fixed lg:relative top-0 left-0 h-full glass-panel border-r border-slate-500/10 flex flex-col z-[110] bg-[var(--surface)] dark:bg-[#121d18] lg:bg-transparent group/sidebar"
+      >
+        <motion.button
+          whileHover={{ scale: 1.1, transition: { duration: 0.2 } }}
+          whileTap={{ scale: 0.9 }}
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          className="hidden lg:flex absolute -right-4 top-4 w-8 h-8 bg-primary rounded-xl items-center justify-center text-white border-1 border-[var(--background)] z-[70] shadow-premium transition-colors"
+        >
+          <motion.span
+            animate={{ rotate: isCollapsed ? 180 : 0 }}
+            className="material-symbols-outlined text-sm font-bold"
+          >
+            chevron_left
+          </motion.span>
+        </motion.button>
+
+        <div className="flex flex-col h-full w-full overflow-hidden">
+          {/* Search Bar */}
+          <div className="px-4 mt-6 mb-4">
+            <div
+              className={`relative flex items-center h-11 rounded-xl bg-slate-500/5 border border-slate-500/10 transition-all ${isCollapsed ? "justify-center" : "px-4"}`}
+            >
+              <span className="material-symbols-outlined text-slate-400 text-xl flex-shrink-0">
+                search
+              </span>
+              {!isCollapsed && (
+                <motion.input
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="ml-3 bg-transparent outline-none text-sm text-white w-full placeholder:text-slate-500"
+                  placeholder="Search..."
+                />
+              )}
+            </div>
+          </div>
+
+          {/* Full app navigation tree (mobile) */}
+          <nav className="flex-1 px-4 space-y-2 overflow-y-auto custom-scrollbar overflow-x-hidden pt-2">
+            {mobileItems.map((link) => (
+              <NavItemMobile
                 key={link.label}
                 link={link}
                 pathname={pathname}
@@ -148,17 +212,67 @@ export default function Sidebar({
   );
 }
 
-function NavItem({ link, pathname, isCollapsed }: any) {
-  const hasSubItems = link.subItems && link.subItems.length > 0;
+// ─── Desktop nav item (flat links with optional activePattern) ────────────────
+function NavItemDesktop({
+  link,
+  pathname,
+  isCollapsed,
+}: {
+  link: SidebarItem;
+  pathname: string;
+  isCollapsed: boolean;
+}) {
+  const isActive = link.activePattern
+    ? pathname.startsWith(link.activePattern)
+    : pathname === link.href;
+
+  return (
+    <Link
+      href={link.href ?? "#"}
+      className={`flex items-center h-12 rounded-xl transition-all cursor-pointer ${
+        isActive
+          ? "active-tab-gradient text-white shadow-md"
+          : "hover:bg-slate-500/10 text-slate-500"
+      } ${isCollapsed ? "justify-center" : "px-4 gap-4"}`}
+    >
+      <span className="material-symbols-outlined text-[26px] flex-shrink-0">
+        {link.icon}
+      </span>
+      {!isCollapsed && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="flex-1 flex items-center justify-between overflow-hidden"
+        >
+          <span className="font-bold text-[16px] whitespace-nowrap">
+            {link.label}
+          </span>
+        </motion.div>
+      )}
+    </Link>
+  );
+}
+
+// ─── Mobile nav item (supports collapsible sub-items) ────────────────────────
+function NavItemMobile({
+  link,
+  pathname,
+  isCollapsed,
+}: {
+  link: SidebarItem;
+  pathname: string;
+  isCollapsed: boolean;
+}) {
+  const hasSubItems = !!link.subItems && link.subItems.length > 0;
   const isSubActive =
-    hasSubItems && link.subItems.some((sub: any) => pathname === sub.href);
+    hasSubItems && link.subItems!.some((sub) => pathname === sub.href);
   const isActive = pathname === link.href || isSubActive;
   const [isOpen, setIsOpen] = useState(isSubActive);
 
   return (
     <div className="flex flex-col">
       <Link
-        href={hasSubItems ? "#" : link.href}
+        href={hasSubItems ? "#" : link.href ?? "#"}
         onClick={(e) => {
           if (hasSubItems) {
             e.preventDefault();
@@ -204,7 +318,7 @@ function NavItem({ link, pathname, isCollapsed }: any) {
             transition={{ duration: 0.2 }}
             className="overflow-hidden ml-4 pl-8 border-l border-slate-500/20 mt-1"
           >
-            {link.subItems.map((sub: any) => (
+            {link.subItems!.map((sub) => (
               <Link
                 key={sub.href}
                 href={sub.href}

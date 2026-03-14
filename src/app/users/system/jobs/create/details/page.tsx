@@ -8,37 +8,31 @@ import React, {
 } from "react";
 import { motion, AnimatePresence, Variants } from "framer-motion";
 import { useRouter } from "next/navigation";
-
-import { createBlankJob } from "@/models/Job";
-import type {
-  Department,
-  Job,
-  JobCategory,
-  LocationType,
-} from "@/types/job_types";
 import {
+  getDraft,
+  saveDraft,
+  createBlankDraft,
   fetchDepartments,
-  fetchLocationTypes,
   fetchJobTemplates,
   fetchAiSkillSuggestions,
-  JobTemplate,
-  LS_KEY,
+  fetchWorkArrangements,
+  fetchEmploymentTypes,
+  WORK_ARRANGEMENT_ICONS,
+  WORK_ARRANGEMENT_LABELS,
+  EMPLOYMENT_TYPE_LABELS,
+  JobDraft,
 } from "@/services/jobService";
-
-const LOCATION_TYPE_ICONS: Record<string, string> = {
-  Remote: "home",
-  Hybrid: "apartment",
-  Onsite: "corporate_fare",
-};
-
-// JOB_TEMPLATES is now fetched from the service
-
-// AI Skill Suggestions are now fetched from the service
+import {
+  WorkArrangement,
+  EmploymentType,
+  Department,
+  JobTemplate,
+} from "@/types/job_types";
+import { UUID } from "@/types/common_types";
 
 // ---------------------------------------------------------------------------
 // Animation Variants
 // ---------------------------------------------------------------------------
-
 const itemVariants: Variants = {
   hidden: { y: 15, opacity: 0 },
   visible: { y: 0, opacity: 1, transition: { duration: 0.4, ease: "easeOut" } },
@@ -47,271 +41,235 @@ const itemVariants: Variants = {
 // ---------------------------------------------------------------------------
 // Page Component
 // ---------------------------------------------------------------------------
-
 export default function CreateJobDetailsPage() {
   const router = useRouter();
 
-  const [availableDepartments, setAvailableDepartments] = useState<string[]>(
+  // ── Fetched reference data ──────────────────────────────────────────────
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [templates, setTemplates] = useState<JobTemplate[]>([]);
+  const [workArrangements, setWorkArrangements] = useState<WorkArrangement[]>(
     [],
   );
-  const [availableLocationTypes, setAvailableLocationTypes] = useState<
-    string[]
-  >([]);
-  const [availableTemplates, setAvailableTemplates] = useState<JobTemplate[]>(
-    [],
-  );
-  const [availableSkillSuggestions, setAvailableSkillSuggestions] = useState<
-    string[]
-  >([]);
+  const [employmentTypes, setEmploymentTypes] = useState<EmploymentType[]>([]);
+  const [aiSkillSuggestions, setAiSkillSuggestions] = useState<string[]>([]);
   const [isDataLoading, setIsDataLoading] = useState(true);
 
-  // ── Form State (maps directly to Partial<Job>) ───────────────────────────
+  // ── Form state (mirrors JobDraft Step 1 fields) ─────────────────────────
   const [title, setTitle] = useState("");
-  const [department, setDepartment] = useState<Department>(
-    "Engineering" as Department,
-  );
+  const [departmentId, setDepartmentId] = useState<UUID | null>(null);
+  const [departmentName, setDepartmentName] = useState("");
   const [location, setLocation] = useState("");
-  const [locationType, setLocationType] = useState<LocationType>("Hybrid");
+  const [workArrangement, setWorkArrangement] = useState<WorkArrangement>(
+    WorkArrangement.Hybrid,
+  );
+  const [employmentType, setEmploymentType] = useState<EmploymentType>(
+    EmploymentType.FullTime,
+  );
   const [description, setDescription] = useState("");
-  const [skills, setSkills] = useState<string[]>([]);
+  const [skillNames, setSkillNames] = useState<string[]>([]);
   const [skillInput, setSkillInput] = useState("");
+  const [templateId, setTemplateId] = useState<UUID | null>(null);
 
-  // ── Dynamic data fetching ──────────────────────────────────────────
+  // ── UI state ────────────────────────────────────────────────────────────
+  const [showModal, setShowModal] = useState(true);
+  const [isDeptOpen, setIsDeptOpen] = useState(false);
+  const [isEmpTypeOpen, setIsEmpTypeOpen] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
+  const [isAiGenerating, setIsAiGenerating] = useState(false);
+  const [errors, setErrors] = useState<Partial<Record<string, string>>>({});
+
+  // ── Rich text editor state ──────────────────────────────────────────────
+  const [isBold, setIsBold] = useState(false);
+  const [isItalic, setIsItalic] = useState(false);
+  const [isUnderline, setIsUnderline] = useState(false);
+  const [fontSize, setFontSize] = useState("3");
+  const [isFontSizeOpen, setIsFontSizeOpen] = useState(false);
+
+  const skillInputRef = useRef<HTMLInputElement>(null);
+  const descEditorRef = useRef<HTMLDivElement>(null);
+  const fontSizeRef = useRef<HTMLDivElement>(null);
+
+  // ── Load reference data ─────────────────────────────────────────────────
   useEffect(() => {
-    const loadData = async () => {
+    const load = async () => {
       try {
-        const [depts, locs, temps, skillsFetched] = await Promise.all([
-          fetchDepartments(),
-          fetchLocationTypes(),
-          fetchJobTemplates(),
-          fetchAiSkillSuggestions(),
-        ]);
-        setAvailableDepartments(depts);
-        setAvailableLocationTypes(locs);
-        setAvailableTemplates(temps);
-        setAvailableSkillSuggestions(skillsFetched);
+        const [depts, tmpls, arrangements, empTypes, skills] =
+          await Promise.all([
+            fetchDepartments(),
+            fetchJobTemplates(),
+            fetchWorkArrangements(),
+            fetchEmploymentTypes(),
+            fetchAiSkillSuggestions(),
+          ]);
+        setDepartments(depts);
+        setTemplates(tmpls);
+        setWorkArrangements(arrangements);
+        setEmploymentTypes(empTypes);
+        setAiSkillSuggestions(skills);
       } catch (err) {
-        console.error("Failed to load constant data:", err);
+        console.error("Failed to load data:", err);
       } finally {
         setIsDataLoading(false);
       }
     };
-    loadData();
+    load();
   }, []);
 
-  // ── UI State ─────────────────────────────────────────────────────────────
-  const [showModal, setShowModal] = useState(true);
-  const [isDeptOpen, setIsDeptOpen] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [isSaved, setIsSaved] = useState(false);
-  const [isAiGenerating, setIsAiGenerating] = useState(false);
-  const [errors, setErrors] = useState<Partial<Record<keyof Job, string>>>({});
+  // ── Hydrate from draft ──────────────────────────────────────────────────
+  useEffect(() => {
+    const draft = getDraft();
+    if (draft.title) {
+      setTitle(draft.title);
+      setDepartmentId(draft.department_id);
+      setDepartmentName(draft.department_name);
+      setLocation(draft.location ?? "");
+      setWorkArrangement(draft.work_arrangement);
+      setEmploymentType(draft.employment_type);
+      setDescription(draft.description);
+      setSkillNames(draft.skill_names);
+      setTemplateId(draft.template_id);
+      setShowModal(false);
+    }
+  }, []);
 
-  const skillInputRef = useRef<HTMLInputElement>(null);
-  const descEditorRef = useRef<HTMLDivElement>(null);
+  // ── Sync description → editor DOM ──────────────────────────────────────
+  useEffect(() => {
+    const el = descEditorRef.current;
+    if (!el || el.innerHTML === description) return;
+    el.innerHTML = description;
+  }, [description]);
 
-  // ── Rich-text editor format state ────────────────────────────────────────
-  const [isBold, setIsBold] = useState(false);
-  const [isItalic, setIsItalic] = useState(false);
-  const [isUnderline, setIsUnderline] = useState(false);
-  const [fontSize, setFontSize] = useState("3"); // Default execCommand size
-  const [isFontSizeOpen, setIsFontSizeOpen] = useState(false);
-  const fontSizeRef = useRef<HTMLDivElement>(null);
+  // ── Close font-size dropdown on outside click ───────────────────────────
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (
+        fontSizeRef.current &&
+        !fontSizeRef.current.contains(e.target as Node)
+      )
+        setIsFontSizeOpen(false);
+    };
+    if (isFontSizeOpen) document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [isFontSizeOpen]);
 
-  /** Re-check active formats whenever the selection changes inside the editor */
+  // ── Rich text helpers ───────────────────────────────────────────────────
   const updateFormatState = useCallback(() => {
     setIsBold(document.queryCommandState("bold"));
     setIsItalic(document.queryCommandState("italic"));
     setIsUnderline(document.queryCommandState("underline"));
-
-    // font size is trickier with queryCommandValue
     const size = document.queryCommandValue("fontSize");
     if (size) setFontSize(size);
   }, []);
 
-  // Close custom font size dropdown on click outside
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (
-        fontSizeRef.current &&
-        !fontSizeRef.current.contains(e.target as Node)
-      ) {
-        setIsFontSizeOpen(false);
-      }
-    };
-    if (isFontSizeOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [isFontSizeOpen]);
-
-  /** Apply a formatting command and keep the editor focused */
   const handleFormat = useCallback(
     (command: string, value?: string) => {
       descEditorRef.current?.focus();
       document.execCommand(command, false, value);
       updateFormatState();
-      // Sync HTML back to state
-      const html = descEditorRef.current?.innerHTML ?? "";
-      setDescription(html);
+      setDescription(descEditorRef.current?.innerHTML ?? "");
       setErrors((p) => ({ ...p, description: undefined }));
     },
     [updateFormatState],
   );
 
-  // Hydrate from localStorage on mount (resume draft)
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(LS_KEY);
-      if (raw) {
-        const saved: Partial<Job> = JSON.parse(raw);
-        if (saved.title) setTitle(saved.title);
-        if (saved.department) setDepartment(saved.department);
-        if (saved.location) setLocation(saved.location);
-        if (saved.locationType) setLocationType(saved.locationType);
-        if (saved.description) setDescription(saved.description);
-        if (saved.skills?.length) setSkills(saved.skills);
-        // Only skip template modal if a title already exists
-        if (saved.title) setShowModal(false);
-      }
-    } catch {
-      // ignore parse errors
-    }
-  }, []);
-
-  // Sync description state → rich-text editor DOM
-  // (triggered by AI generate or localStorage hydration)
-  useEffect(() => {
-    const el = descEditorRef.current;
-    if (!el) return;
-    // Only update DOM if the content actually differs to avoid cursor jumps
-    if (el.innerHTML !== description) {
-      el.innerHTML = description;
-    }
-  }, [description]);
-
-  // ── Skill Helpers ─────────────────────────────────────────────────────────
+  // ── Skill helpers ───────────────────────────────────────────────────────
   const addSkill = (value: string) => {
     const trimmed = value.trim();
-    if (trimmed && !skills.includes(trimmed)) {
-      setSkills((prev) => [...prev, trimmed]);
-    }
+    if (trimmed && !skillNames.includes(trimmed))
+      setSkillNames((prev) => [...prev, trimmed]);
     setSkillInput("");
   };
-
-  const removeSkill = (skill: string) =>
-    setSkills((prev) => prev.filter((s) => s !== skill));
-
+  const removeSkill = (s: string) =>
+    setSkillNames((prev) => prev.filter((x) => x !== s));
   const handleSkillKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" || e.key === ",") {
       e.preventDefault();
       addSkill(skillInput);
     }
-    if (e.key === "Backspace" && skillInput === "" && skills.length > 0) {
-      removeSkill(skills[skills.length - 1]);
-    }
+    if (e.key === "Backspace" && skillInput === "" && skillNames.length > 0)
+      removeSkill(skillNames[skillNames.length - 1]);
   };
 
-  // ── Template Select ───────────────────────────────────────────────────────
-  const selectTemplate = (tmpl: { title: string; dept: Department }) => {
-    setTitle(tmpl.title);
-    setDepartment(tmpl.dept);
+  // ── Template select ─────────────────────────────────────────────────────
+  const selectTemplate = (tmpl: JobTemplate) => {
+    setTemplateId(tmpl.id);
+    setTitle(tmpl.name);
     setShowModal(false);
   };
 
-  // ── AI Generate Description ───────────────────────────────────────────────
+  // ── AI generate description ─────────────────────────────────────────────
   const handleAiGenerate = async () => {
     setIsAiGenerating(true);
     await new Promise((r) => setTimeout(r, 2000));
     setDescription(
-      `We are seeking a visionary ${title || "specialist"} to join our ${department} team. ` +
+      `We are seeking a visionary ${title || "specialist"} to join our ${
+        departmentName || "team"
+      }. ` +
         `You will design and deliver scalable solutions, collaborating cross-functionally ` +
-        `to drive measurable impact. Strong expertise in ${skills.slice(0, 3).join(", ") || "the relevant stack"} ` +
-        `is required. This ${locationType.toLowerCase()} role offers the opportunity to shape ` +
+        `to drive measurable impact. Strong expertise in ${
+          skillNames.slice(0, 3).join(", ") || "the relevant stack"
+        } ` +
+        `is required. This ${
+          WORK_ARRANGEMENT_LABELS[workArrangement]?.toLowerCase() ?? ""
+        } role offers the opportunity to shape ` +
         `the future of our engineering landscape.`,
     );
     setIsAiGenerating(false);
   };
 
-  // ── Validation ────────────────────────────────────────────────────────────
+  // ── Build draft patch ───────────────────────────────────────────────────
+  const buildPatch = (): Partial<JobDraft> => ({
+    title,
+    department_id: departmentId,
+    department_name: departmentName,
+    location: location || null,
+    work_arrangement: workArrangement,
+    employment_type: employmentType,
+    description,
+    skill_names: skillNames,
+    skill_ids: [], // will be resolved by ID lookup when backend exists
+    template_id: templateId,
+  });
+
+  // ── Validate ────────────────────────────────────────────────────────────
   const validate = (): boolean => {
-    const errs: Partial<Record<keyof Job, string>> = {};
+    const errs: Record<string, string> = {};
     if (!title.trim()) errs.title = "Job title is required.";
-    if (!department) errs.department = "Please select a department.";
+    if (!departmentId) errs.department = "Please select a department.";
     if (!location.trim()) errs.location = "Location is required.";
-    if (skills.length === 0) errs.skills = "Add at least one required skill.";
+    if (skillNames.length === 0)
+      errs.skills = "Add at least one required skill.";
     if (!description.trim()) errs.description = "Job description is required.";
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
 
-  // ── Save Draft (no validation) ────────────────────────────────────────────
+  // ── Save draft ──────────────────────────────────────────────────────────
   const handleSaveDraft = async () => {
     setIsProcessing(true);
     await new Promise((r) => setTimeout(r, 1200));
-
-    try {
-      const existingRaw = localStorage.getItem(LS_KEY);
-      const existing = existingRaw ? JSON.parse(existingRaw) : createBlankJob();
-
-      const updated = {
-        ...existing,
-        ...buildPayload(),
-        updatedAt: new Date().toISOString(),
-      };
-
-      localStorage.setItem(LS_KEY, JSON.stringify(updated));
-    } catch (e) {
-      console.error("Failed to save draft", e);
-    }
-
+    saveDraft({ ...buildPatch(), status: "DRAFT" as any });
     setIsSaved(true);
     setTimeout(() => router.push("/users/system/jobs/active_jobs"), 800);
   };
 
-  // ── Build Payload ─────────────────────────────────────────────────────────
-  const buildPayload = () => {
-    return {
-      title,
-      department,
-      location,
-      locationType,
-      description,
-      skills,
-      status: "Draft" as const,
-    };
-  };
-
-  // ── Continue ──────────────────────────────────────────────────────────────
+  // ── Continue ────────────────────────────────────────────────────────────
   const handleContinue = async () => {
     if (!validate()) return;
-
     setIsProcessing(true);
-    await new Promise((r) => setTimeout(r, 1500));
-
-    try {
-      const existingRaw = localStorage.getItem(LS_KEY);
-      const existing = existingRaw ? JSON.parse(existingRaw) : createBlankJob();
-
-      const updated = {
-        ...existing,
-        ...buildPayload(),
-        updatedAt: new Date().toISOString(),
-      };
-
-      localStorage.setItem(LS_KEY, JSON.stringify(updated));
-    } catch (e) {
-      console.error("Failed to save details", e);
-    }
-
+    await new Promise((r) => setTimeout(r, 1200));
+    saveDraft(buildPatch());
     setIsSaved(true);
     setTimeout(() => router.push("/users/system/jobs/create/benefits"), 900);
   };
 
-  // ──────────────────────────────────────────────────────────────────────────
+  // ── Department display ──────────────────────────────────────────────────
+  const selectedDeptLabel = departmentName || "Select Department";
+
   return (
     <div className="min-h-screen flex flex-col mesh-gradient rounded-3xl no-scrollbar bg-[var(--background)]">
-      {/* ── Full-page Save Overlay ─────────────────────────────────────────── */}
+      {/* ── Processing overlay ──────────────────────────────────────────── */}
       <AnimatePresence>
         {isProcessing && (
           <motion.div
@@ -369,7 +327,7 @@ export default function CreateJobDetailsPage() {
         )}
       </AnimatePresence>
 
-      {/* ── Template Selection Modal ───────────────────────────────────────── */}
+      {/* ── Template Modal ──────────────────────────────────────────────── */}
       <AnimatePresence>
         {showModal && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -387,7 +345,6 @@ export default function CreateJobDetailsPage() {
               className="relative w-full max-w-2xl glass-panel rounded-[2rem] p-6 md:p-10 shadow-2xl border-[var(--glass-border)] max-h-[90vh] overflow-y-auto"
             >
               <div className="absolute -top-24 -left-24 w-64 h-64 bg-primary/10 blur-[80px] rounded-full pointer-events-none" />
-
               <div className="relative z-10 text-center mb-8">
                 <div className="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-primary/20">
                   <span className="material-symbols-outlined text-2xl">
@@ -410,7 +367,7 @@ export default function CreateJobDetailsPage() {
                     Loading templates...
                   </div>
                 ) : (
-                  availableTemplates.map((tmpl) => (
+                  templates.map((tmpl) => (
                     <button
                       key={tmpl.id}
                       onClick={() => selectTemplate(tmpl)}
@@ -418,15 +375,15 @@ export default function CreateJobDetailsPage() {
                     >
                       <div className="w-11 h-11 rounded-xl bg-[var(--surface)] flex items-center justify-center text-slate-400 group-hover:bg-primary/10 group-hover:text-primary transition-colors border border-[var(--border-subtle)]">
                         <span className="material-symbols-outlined text-xl">
-                          {tmpl.icon}
+                          work
                         </span>
                       </div>
                       <div>
                         <p className="text-sm font-bold text-[var(--text-main)] mb-0.5">
-                          {tmpl.title}
+                          {tmpl.name}
                         </p>
                         <p className="text-[11px] font-semibold text-[var(--text-muted)] opacity-70">
-                          {tmpl.dept}
+                          {tmpl.is_active ? "Active Template" : "Inactive"}
                         </p>
                       </div>
                     </button>
@@ -453,7 +410,7 @@ export default function CreateJobDetailsPage() {
         )}
       </AnimatePresence>
 
-      {/* ── Step Progress ──────────────────────────────────────────────────── */}
+      {/* ── Step Header ─────────────────────────────────────────────────── */}
       <header className="w-full px-4 pt-6 md:pt-10">
         <div className="max-w-3xl mx-auto flex items-center justify-between relative px-2">
           <StepItem icon="description" label="Details" active />
@@ -466,10 +423,10 @@ export default function CreateJobDetailsPage() {
         </div>
       </header>
 
-      {/* ── Main Content ───────────────────────────────────────────────────── */}
+      {/* ── Main ────────────────────────────────────────────────────────── */}
       <main className="flex-1 max-w-7xl mx-auto w-full px-4 py-8 md:py-12">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start pb-32 lg:pb-0">
-          {/* ── Form Panel ─────────────────────────────────────────────────── */}
+          {/* Form */}
           <motion.div
             initial="hidden"
             animate="visible"
@@ -487,14 +444,15 @@ export default function CreateJobDetailsPage() {
             </div>
 
             <div className="space-y-8">
-              {/* ── Job Title ─────────────────────────────────────────────── */}
+              {/* Job Title */}
               <div className="space-y-2">
                 <label className="text-xs font-bold text-[var(--text-muted)] ml-1 flex items-center gap-1">
                   Job Title <span className="text-red-400">*</span>
                 </label>
                 <input
-                  id="job-title"
-                  className={`premium-input rounded-xl md:rounded-2xl py-3.5 px-5 md:py-4 md:px-6 text-lg md:text-xl font-bold text-[var(--text-main)] transition-all placeholder:font-medium placeholder:opacity-30 ${errors.title ? "border-red-400/60 focus:border-red-400" : ""}`}
+                  className={`premium-input rounded-xl md:rounded-2xl py-3.5 px-5 md:py-4 md:px-6 text-lg md:text-xl font-bold text-[var(--text-main)] transition-all placeholder:font-medium placeholder:opacity-30 ${
+                    errors.title ? "border-red-400/60 focus:border-red-400" : ""
+                  }`}
                   placeholder="e.g. Lead Blockchain Engineer"
                   value={title}
                   onChange={(e) => {
@@ -505,9 +463,9 @@ export default function CreateJobDetailsPage() {
                 {errors.title && <FieldError msg={errors.title} />}
               </div>
 
-              {/* ── Department + Category ─────────────────────────────────── */}
+              {/* Department + Employment Type */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                {/* Department Dropdown */}
+                {/* Department */}
                 <div className="space-y-2 relative">
                   <label className="text-xs font-bold text-[var(--text-muted)] ml-1 flex items-center gap-1">
                     Department <span className="text-red-400">*</span>
@@ -515,9 +473,11 @@ export default function CreateJobDetailsPage() {
                   <button
                     type="button"
                     onClick={() => setIsDeptOpen((o) => !o)}
-                    className={`w-full premium-input rounded-xl py-3.5 px-5 font-semibold text-[var(--text-main)] flex items-center justify-between hover:border-primary/50 transition-all text-sm ${errors.department ? "border-red-400/60" : ""}`}
+                    className={`w-full premium-input rounded-xl py-3.5 px-5 font-semibold text-[var(--text-main)] flex items-center justify-between hover:border-primary/50 transition-all text-sm ${
+                      errors.department ? "border-red-400/60" : ""
+                    }`}
                   >
-                    <span>{department}</span>
+                    <span>{selectedDeptLabel}</span>
                     <motion.span
                       animate={{ rotate: isDeptOpen ? 180 : 0 }}
                       className="material-symbols-outlined text-primary"
@@ -525,7 +485,6 @@ export default function CreateJobDetailsPage() {
                       expand_more
                     </motion.span>
                   </button>
-
                   <AnimatePresence>
                     {isDeptOpen && (
                       <>
@@ -535,21 +494,26 @@ export default function CreateJobDetailsPage() {
                           exit={{ opacity: 0, y: -8 }}
                           className="absolute w-full z-[110] bg-[var(--surface)] rounded-2xl border border-[var(--glass-border)] shadow-2xl overflow-hidden p-1 max-h-56 overflow-y-auto"
                         >
-                          {availableDepartments.map((dept) => (
+                          {departments.map((dept) => (
                             <button
-                              key={dept}
+                              key={dept.id}
                               type="button"
                               onClick={() => {
-                                setDepartment(dept as Department);
+                                setDepartmentId(dept.id);
+                                setDepartmentName(dept.name);
                                 setIsDeptOpen(false);
                                 setErrors((p) => ({
                                   ...p,
                                   department: undefined,
                                 }));
                               }}
-                              className={`w-full text-left px-4 py-2.5 text-sm font-semibold transition-colors rounded-xl ${department === dept ? "text-primary bg-primary/10" : "text-[var(--text-main)] hover:bg-primary/5"}`}
+                              className={`w-full text-left px-4 py-2.5 text-sm font-semibold transition-colors rounded-xl ${
+                                departmentId === dept.id
+                                  ? "text-primary bg-primary/10"
+                                  : "text-[var(--text-main)] hover:bg-primary/5"
+                              }`}
                             >
-                              {dept}
+                              {dept.name}
                             </button>
                           ))}
                         </motion.div>
@@ -562,55 +526,106 @@ export default function CreateJobDetailsPage() {
                   </AnimatePresence>
                   {errors.department && <FieldError msg={errors.department} />}
                 </div>
+
+                {/* Employment Type */}
+                <div className="space-y-2 relative">
+                  <label className="text-xs font-bold text-[var(--text-muted)] ml-1">
+                    Employment Type
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setIsEmpTypeOpen((o) => !o)}
+                    className="w-full premium-input rounded-xl py-3.5 px-5 font-semibold text-[var(--text-main)] flex items-center justify-between hover:border-primary/50 transition-all text-sm"
+                  >
+                    <span>{EMPLOYMENT_TYPE_LABELS[employmentType]}</span>
+                    <motion.span
+                      animate={{ rotate: isEmpTypeOpen ? 180 : 0 }}
+                      className="material-symbols-outlined text-primary"
+                    >
+                      expand_more
+                    </motion.span>
+                  </button>
+                  <AnimatePresence>
+                    {isEmpTypeOpen && (
+                      <>
+                        <motion.div
+                          initial={{ opacity: 0, y: -8 }}
+                          animate={{ opacity: 1, y: 4 }}
+                          exit={{ opacity: 0, y: -8 }}
+                          className="absolute w-full z-[110] bg-[var(--surface)] rounded-2xl border border-[var(--glass-border)] shadow-2xl overflow-hidden p-1"
+                        >
+                          {employmentTypes.map((et) => (
+                            <button
+                              key={et}
+                              type="button"
+                              onClick={() => {
+                                setEmploymentType(et);
+                                setIsEmpTypeOpen(false);
+                              }}
+                              className={`w-full text-left px-4 py-2.5 text-sm font-semibold transition-colors rounded-xl ${
+                                employmentType === et
+                                  ? "text-primary bg-primary/10"
+                                  : "text-[var(--text-main)] hover:bg-primary/5"
+                              }`}
+                            >
+                              {EMPLOYMENT_TYPE_LABELS[et]}
+                            </button>
+                          ))}
+                        </motion.div>
+                        <div
+                          className="fixed inset-0 z-[100]"
+                          onClick={() => setIsEmpTypeOpen(false)}
+                        />
+                      </>
+                    )}
+                  </AnimatePresence>
+                </div>
               </div>
 
-              {/* ── Location + Location Type ───────────────────────────────── */}
+              {/* Location + Work Arrangement */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                {/* Location Text */}
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-[var(--text-muted)] ml-1 flex items-center gap-1">
                     Location <span className="text-red-400">*</span>
                   </label>
-                  <div className="relative flex items-center">
-                    {/* <span className="material-symbols-outlined absolute left-4 text-[var(--text-muted)] text-lg opacity-60 pointer-events-none">
-                      location_on
-                    </span> */}
-                    <input
-                      id="job-location"
-                      className={`premium-input rounded-xl md:rounded-2xl py-3.5 px-5 md:py-4 md:px-6 font-bold text-md md:text-md text-[var(--text-main)] transition-all placeholder:font-medium placeholder:opacity-30 ${errors.title ? "border-red-400/60 focus:border-red-400" : ""}`}
-                      placeholder="e.g. Remote / Lisbon, PT"
-                      value={location}
-                      onChange={(e) => {
-                        setLocation(e.target.value);
-                        setErrors((p) => ({ ...p, location: undefined }));
-                      }}
-                    />
-                  </div>
+                  <input
+                    className={`premium-input rounded-xl md:rounded-2xl py-3.5 px-5 md:py-4 md:px-6 font-bold text-md text-[var(--text-main)] transition-all placeholder:font-medium placeholder:opacity-30 ${
+                      errors.location
+                        ? "border-red-400/60 focus:border-red-400"
+                        : ""
+                    }`}
+                    placeholder="e.g. Remote / Lisbon, PT"
+                    value={location}
+                    onChange={(e) => {
+                      setLocation(e.target.value);
+                      setErrors((p) => ({ ...p, location: undefined }));
+                    }}
+                  />
                   {errors.location && <FieldError msg={errors.location} />}
                 </div>
 
-                {/* Location Type Buttons */}
+                {/* Work Arrangement */}
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-[var(--text-muted)] ml-1">
                     Work Arrangement
                   </label>
                   <div className="flex gap-2 h-[52px]">
-                    {availableLocationTypes.map((lt) => (
+                    {workArrangements.map((wa) => (
                       <button
-                        key={lt}
+                        key={wa}
                         type="button"
-                        onClick={() => setLocationType(lt as LocationType)}
+                        onClick={() => setWorkArrangement(wa)}
                         className={`flex-1 rounded-xl border transition-all flex flex-col items-center justify-center gap-1 ${
-                          locationType === lt
+                          workArrangement === wa
                             ? "border-primary bg-primary/10 text-primary shadow-glow"
                             : "border-[var(--border-subtle)] bg-[var(--input-bg)] text-[var(--text-muted)] opacity-70 hover:opacity-100 hover:border-primary/30"
                         }`}
                       >
                         <span className="material-symbols-outlined text-base">
-                          {LOCATION_TYPE_ICONS[lt]}
+                          {WORK_ARRANGEMENT_ICONS[wa]}
                         </span>
                         <span className="text-[10px] font-bold tracking-tight">
-                          {lt}
+                          {WORK_ARRANGEMENT_LABELS[wa]}
                         </span>
                       </button>
                     ))}
@@ -618,18 +633,22 @@ export default function CreateJobDetailsPage() {
                 </div>
               </div>
 
-              {/* ── Required Skills ────────────────────────────────────────── */}
+              {/* Required Skills */}
               <div className="space-y-2">
                 <label className="text-xs font-bold text-[var(--text-muted)] ml-1 flex items-center gap-1">
                   Required Skills <span className="text-red-400">*</span>
                 </label>
                 <div
-                  className={`bg-[var(--input-bg)] border rounded-2xl p-5 min-h-[120px] focus-within:border-primary/40 transition-all shadow-sm cursor-text ${errors.skills ? "border-red-400/60" : "border-[var(--input-border,var(--border-subtle))]"}`}
+                  className={`bg-[var(--input-bg)] border rounded-2xl p-5 min-h-[120px] focus-within:border-primary/40 transition-all shadow-sm cursor-text ${
+                    errors.skills
+                      ? "border-red-400/60"
+                      : "border-[var(--input-border,var(--border-subtle))]"
+                  }`}
                   onClick={() => skillInputRef.current?.focus()}
                 >
                   <div className="flex flex-wrap gap-2 mb-3">
                     <AnimatePresence>
-                      {skills.map((skill) => (
+                      {skillNames.map((skill) => (
                         <motion.div
                           key={skill}
                           initial={{ scale: 0.8, opacity: 0 }}
@@ -654,7 +673,7 @@ export default function CreateJobDetailsPage() {
                       ref={skillInputRef}
                       className="flex-1 min-w-[140px] bg-transparent border-none text-[var(--text-main)] font-semibold text-sm outline-none px-1 placeholder:opacity-40"
                       placeholder={
-                        skills.length === 0
+                        skillNames.length === 0
                           ? "Type a skill and press Enter..."
                           : "Add more..."
                       }
@@ -669,20 +688,18 @@ export default function CreateJobDetailsPage() {
                       }}
                     />
                   </div>
-
-                  {/* AI Suggestions */}
                   <div className="border-t border-[var(--border-subtle)] pt-4">
                     <p className="text-[10px] font-bold text-[var(--text-muted)] opacity-60 uppercase tracking-tight mb-2.5">
                       AI Suggestions
                     </p>
                     <div className="flex flex-wrap gap-2">
                       {isDataLoading ? (
-                        <div className="text-[10px] italic text-[var(--text-muted)] opacity-50">
-                          Loading suggestions...
-                        </div>
+                        <span className="text-[10px] italic text-[var(--text-muted)] opacity-50">
+                          Loading...
+                        </span>
                       ) : (
-                        availableSkillSuggestions
-                          .filter((s) => !skills.includes(s))
+                        aiSkillSuggestions
+                          .filter((s) => !skillNames.includes(s))
                           .map((s) => (
                             <button
                               key={s}
@@ -703,15 +720,16 @@ export default function CreateJobDetailsPage() {
                 {errors.skills && <FieldError msg={errors.skills} />}
               </div>
 
-              {/* ── Job Description ────────────────────────────────────────── */}
+              {/* Job Description */}
               <div className="space-y-2">
                 <label className="text-xs font-bold text-[var(--text-muted)] ml-1 flex items-center gap-1">
                   Job Description <span className="text-red-400">*</span>
                 </label>
                 <div
-                  className={`glass-panel rounded-2xl overflow-hidden border-[var(--border-subtle)] focus-within:ring-1 focus-within:ring-primary/30 transition-all relative ${errors.description ? "border-red-400/60" : ""}`}
+                  className={`glass-panel rounded-2xl overflow-hidden border-[var(--border-subtle)] focus-within:ring-1 focus-within:ring-primary/30 transition-all relative ${
+                    errors.description ? "border-red-400/60" : ""
+                  }`}
                 >
-                  {/* AI Generating Overlay */}
                   <AnimatePresence>
                     {isAiGenerating && (
                       <motion.div
@@ -734,83 +752,49 @@ export default function CreateJobDetailsPage() {
                             psychology
                           </span>
                         </div>
-                        <div className="text-center">
-                          <p className="text-[10px] font-bold text-primary uppercase tracking-widest animate-pulse">
-                            AI Drafting Mission
-                          </p>
-                          <p className="text-[9px] text-[var(--text-muted)] font-medium">
-                            Generating context...
-                          </p>
-                        </div>
+                        <p className="text-[10px] font-bold text-primary uppercase tracking-widest animate-pulse">
+                          AI Drafting Mission
+                        </p>
                       </motion.div>
                     )}
                   </AnimatePresence>
 
                   {/* Toolbar */}
                   <div className="flex flex-wrap items-center gap-1 px-4 py-2 bg-[var(--surface)] border-b border-[var(--border-subtle)]">
-                    {/* Bold */}
-                    <button
-                      type="button"
-                      title="Bold (Ctrl+B)"
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        handleFormat("bold");
-                      }}
-                      className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${
-                        isBold
-                          ? "bg-primary/15 text-primary"
-                          : "text-slate-400 hover:bg-[var(--border-subtle)] hover:text-[var(--text-main)]"
-                      }`}
-                    >
-                      <span className="material-symbols-outlined text-lg">
-                        format_bold
-                      </span>
-                    </button>
-
-                    {/* Italic */}
-                    <button
-                      type="button"
-                      title="Italic (Ctrl+I)"
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        handleFormat("italic");
-                      }}
-                      className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${
-                        isItalic
-                          ? "bg-primary/15 text-primary"
-                          : "text-slate-400 hover:bg-[var(--border-subtle)] hover:text-[var(--text-main)]"
-                      }`}
-                    >
-                      <span className="material-symbols-outlined text-lg">
-                        format_italic
-                      </span>
-                    </button>
-
-                    {/* Underline */}
-                    <button
-                      type="button"
-                      title="Underline (Ctrl+U)"
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        handleFormat("underline");
-                      }}
-                      className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${
-                        isUnderline
-                          ? "bg-primary/15 text-primary"
-                          : "text-slate-400 hover:bg-[var(--border-subtle)] hover:text-[var(--text-main)]"
-                      }`}
-                    >
-                      <span className="material-symbols-outlined text-lg">
-                        format_underlined
-                      </span>
-                    </button>
-
+                    {[
+                      { cmd: "bold", icon: "format_bold", active: isBold },
+                      {
+                        cmd: "italic",
+                        icon: "format_italic",
+                        active: isItalic,
+                      },
+                      {
+                        cmd: "underline",
+                        icon: "format_underlined",
+                        active: isUnderline,
+                      },
+                    ].map(({ cmd, icon, active }) => (
+                      <button
+                        key={cmd}
+                        type="button"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          handleFormat(cmd);
+                        }}
+                        className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${
+                          active
+                            ? "bg-primary/15 text-primary"
+                            : "text-slate-400 hover:bg-[var(--border-subtle)] hover:text-[var(--text-main)]"
+                        }`}
+                      >
+                        <span className="material-symbols-outlined text-lg">
+                          {icon}
+                        </span>
+                      </button>
+                    ))}
                     <div className="w-px h-5 bg-[var(--border-subtle)] mx-1" />
-
-                    {/* Alignment */}
                     <button
                       type="button"
-                      title="Align Left"
                       onMouseDown={(e) => {
                         e.preventDefault();
                         handleFormat("justifyLeft");
@@ -823,7 +807,6 @@ export default function CreateJobDetailsPage() {
                     </button>
                     <button
                       type="button"
-                      title="Align Center"
                       onMouseDown={(e) => {
                         e.preventDefault();
                         handleFormat("justifyCenter");
@@ -834,10 +817,8 @@ export default function CreateJobDetailsPage() {
                         format_align_center
                       </span>
                     </button>
-
                     <div className="w-px h-5 bg-[var(--border-subtle)] mx-1" />
-
-                    {/* Font Size Selector */}
+                    {/* Font size */}
                     <div className="relative" ref={fontSizeRef}>
                       <button
                         type="button"
@@ -851,22 +832,19 @@ export default function CreateJobDetailsPage() {
                               ? "Normal"
                               : fontSize === "5"
                                 ? "Large"
-                                : fontSize === "7"
-                                  ? "Huge"
-                                  : "Size"}
+                                : "Huge"}
                         </span>
                         <span className="material-symbols-outlined text-xs">
                           expand_more
                         </span>
                       </button>
-
                       <AnimatePresence>
                         {isFontSizeOpen && (
                           <motion.div
                             initial={{ opacity: 0, y: 5, scale: 0.95 }}
                             animate={{ opacity: 1, y: 4, scale: 1 }}
                             exit={{ opacity: 0, y: 5, scale: 0.95 }}
-                            className="absolute left-0 top-full z-[120] min-w-[100px] bg-[var(--surface)] border border-[var(--glass-border)] rounded-xl shadow-2xl p-1 overflow-hidden"
+                            className="absolute left-0 top-full z-[120] min-w-[100px] bg-[var(--surface)] border border-[var(--glass-border)] rounded-xl shadow-2xl p-1"
                           >
                             {[
                               { label: "Small", val: "1" },
@@ -894,7 +872,6 @@ export default function CreateJobDetailsPage() {
                         )}
                       </AnimatePresence>
                     </div>
-
                     <div className="flex-1" />
                     <button
                       type="button"
@@ -911,23 +888,21 @@ export default function CreateJobDetailsPage() {
                     </button>
                   </div>
 
-                  {/* Rich-text editor */}
+                  {/* Editor */}
                   <div
-                    id="job-description"
                     ref={descEditorRef}
                     contentEditable
                     suppressContentEditableWarning
                     onInput={(e) => {
-                      const html = (e.currentTarget as HTMLDivElement)
-                        .innerHTML;
-                      setDescription(html);
+                      setDescription(
+                        (e.currentTarget as HTMLDivElement).innerHTML,
+                      );
                       setErrors((p) => ({ ...p, description: undefined }));
                     }}
                     onKeyUp={updateFormatState}
                     onMouseUp={updateFormatState}
                     onSelect={updateFormatState}
                     onKeyDown={(e) => {
-                      // Shortcuts
                       if (e.ctrlKey || e.metaKey) {
                         if (e.key === "b") {
                           e.preventDefault();
@@ -943,12 +918,7 @@ export default function CreateJobDetailsPage() {
                         }
                       }
                     }}
-                    className={`min-h-[196px] w-full bg-transparent text-[var(--text-main)] p-6 outline-none text-base font-medium leading-relaxed
-                      [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:mb-4 [&_ul]:list-outside
-                      [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:mb-4 [&_ol]:list-outside
-                      [&_li]:mb-1
-                      [&_strong]:font-bold [&_b]:font-bold
-                      empty:before:content-[attr(data-placeholder)] empty:before:opacity-40 empty:before:pointer-events-none`}
+                    className="min-h-[196px] w-full bg-transparent text-[var(--text-main)] p-6 outline-none text-base font-medium leading-relaxed empty:before:content-[attr(data-placeholder)] empty:before:opacity-40 empty:before:pointer-events-none"
                     data-placeholder="Describe the mission, responsibilities, and day-to-day challenges..."
                   />
                 </div>
@@ -957,14 +927,13 @@ export default function CreateJobDetailsPage() {
             </div>
           </motion.div>
 
-          {/* ── AI Sidebar ──────────────────────────────────────────────────── */}
+          {/* Sidebar */}
           <motion.aside
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.2 }}
             className="col-span-1 lg:col-span-4 lg:sticky lg:top-10 order-1 lg:order-2 space-y-5"
           >
-            {/* AI Assistant Card */}
             <div className="glass-panel rounded-[2rem] p-8 shadow-glow relative overflow-hidden border-primary/10">
               <div className="absolute -top-10 -right-10 w-40 h-40 bg-primary/10 blur-[60px] rounded-full pointer-events-none" />
               <div className="relative z-10 space-y-8">
@@ -983,7 +952,6 @@ export default function CreateJobDetailsPage() {
                     </p>
                   </div>
                 </div>
-
                 <div className="space-y-6 pt-6 border-t border-[var(--border-subtle)]">
                   <div>
                     <h4 className="text-xs font-bold text-[var(--text-muted)] mb-3 tracking-tight">
@@ -1006,11 +974,10 @@ export default function CreateJobDetailsPage() {
                       </div>
                     </div>
                   </div>
-
                   <div className="p-5 bg-primary/5 rounded-2xl border border-primary/10">
                     <p className="text-xs text-[var(--text-muted)] italic leading-relaxed text-center font-medium">
-                      {skills.length > 0
-                        ? `Including "${skills[0]}" expertise typically increases candidate quality by 40%.`
+                      {skillNames.length > 0
+                        ? `Including "${skillNames[0]}" expertise typically increases candidate quality by 40%.`
                         : "Add required skills to get AI-powered market insights."}
                     </p>
                   </div>
@@ -1018,20 +985,29 @@ export default function CreateJobDetailsPage() {
               </div>
             </div>
 
-            {/* Live Summary Card */}
+            {/* Live Summary */}
             <div className="glass-panel rounded-[2rem] p-6 border-[var(--border-subtle)] shadow-sm">
               <h4 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-4">
                 Live Summary
               </h4>
               <div className="space-y-3">
                 <SummaryRow label="Title" value={title || "—"} />
-                <SummaryRow label="Department" value={department || "—"} />
+                <SummaryRow label="Department" value={departmentName || "—"} />
                 <SummaryRow label="Location" value={location || "—"} />
-                <SummaryRow label="Arrangement" value={locationType || "—"} />
+                <SummaryRow
+                  label="Arrangement"
+                  value={WORK_ARRANGEMENT_LABELS[workArrangement]}
+                />
+                <SummaryRow
+                  label="Employment"
+                  value={EMPLOYMENT_TYPE_LABELS[employmentType]}
+                />
                 <SummaryRow
                   label="Skills"
                   value={
-                    skills.length > 0 ? `${skills.length} added` : "None yet"
+                    skillNames.length > 0
+                      ? `${skillNames.length} added`
+                      : "None yet"
                   }
                 />
               </div>
@@ -1040,7 +1016,7 @@ export default function CreateJobDetailsPage() {
         </div>
       </main>
 
-      {/* ── Sticky Footer ──────────────────────────────────────────────────── */}
+      {/* ── Footer ──────────────────────────────────────────────────────── */}
       <footer className="mt-auto border-t border-[var(--border-subtle)] bg-[var(--background)]/80 backdrop-blur-md z-[90]">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           <button
@@ -1052,7 +1028,6 @@ export default function CreateJobDetailsPage() {
             </span>
             Back
           </button>
-
           <div className="flex items-center gap-3">
             <button
               onClick={handleSaveDraft}
@@ -1081,7 +1056,6 @@ export default function CreateJobDetailsPage() {
 // ---------------------------------------------------------------------------
 // Sub-components
 // ---------------------------------------------------------------------------
-
 function FieldError({ msg }: { msg: string }) {
   return (
     <motion.p
@@ -1112,10 +1086,12 @@ function StepItem({
   icon,
   label,
   active = false,
+  completed = false,
 }: {
   icon: string;
   label: string;
   active?: boolean;
+  completed?: boolean;
 }) {
   return (
     <div className="flex flex-col items-center gap-2 z-10">
@@ -1123,13 +1099,17 @@ function StepItem({
         className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 ${
           active
             ? "bg-primary text-white shadow-glow ring-4 ring-primary/10"
-            : "bg-[var(--surface)] border border-[var(--border-subtle)] text-[var(--text-muted)] opacity-60"
+            : completed
+              ? "bg-primary/20 text-primary border border-primary/10"
+              : "bg-[var(--surface)] border border-[var(--border-subtle)] text-[var(--text-muted)] opacity-60"
         }`}
       >
         <span className="material-symbols-outlined text-xl">{icon}</span>
       </div>
       <span
-        className={`text-[10px] font-bold hidden sm:block tracking-tight ${active ? "text-primary" : "text-[var(--text-muted)]"}`}
+        className={`text-[10px] font-bold hidden sm:block tracking-tight ${
+          active ? "text-primary" : "text-[var(--text-muted)]"
+        }`}
       >
         {label}
       </span>

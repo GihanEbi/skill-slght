@@ -1,14 +1,18 @@
 "use client";
-import React, { useState, Suspense } from "react";
+import React, { useState, Suspense, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useParams } from "next/navigation";
 import Image from "next/image";
 
+import { fetchCandidateDetails } from "@/services/candidatePipelineService";
+import { Candidate } from "@/types/candidate_types";
+
 function CandidateDetailContent() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const jobCat = searchParams.get("jobCat");
+  const params = useParams();
+  const candidateId = params.id as string;
+
+  const [candidate, setCandidate] = useState<Candidate | null>(null);
 
   // --- States ---
   const [activeTab, setActiveTab] = useState("Experience");
@@ -18,12 +22,23 @@ function CandidateDetailContent() {
   // Loader states for Email
   const [isSending, setIsSending] = useState(false);
   const [isSent, setIsSent] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Loader states for "Advance Candidate"
   const [isAdvancing, setIsAdvancing] = useState(false);
   const [isAdvanced, setIsAdvanced] = useState(false);
 
-  const tabs = ["Experience", "Resume", "Skills", "Timeline"];
+  const tabs = ["Experience", "Resume", "Skills"];
+
+  useEffect(() => {
+    const loadProfile = async () => {
+      setIsLoading(true);
+      const data = await fetchCandidateDetails(candidateId);
+      setCandidate(data);
+      setIsLoading(false);
+    };
+    if (candidateId) loadProfile();
+  }, [candidateId]);
 
   // --- Handlers ---
   const handleSendEmail = async () => {
@@ -50,33 +65,28 @@ function CandidateDetailContent() {
   };
 
   const renderTabContent = () => {
+    if (!candidate) return null;
     switch (activeTab) {
       case "Experience":
         return (
           <div className="space-y-10 relative pt-2">
             <div className="absolute left-[7px] top-4 bottom-4 w-px bg-[var(--border-subtle)]" />
-            <TimelineItem
-              title="Lead Core Developer"
-              company="Modular L2 Protocol (Open Source)"
-              period="2020 — Present"
-              description="Architected a high-throughput consensus engine handling 10k+ TPS. Led a decentralized team of 15 contributors. Managed security audits and mainnet migration."
-              tags={["Go", "Solidity", "Cryptography"]}
-              active
-            />
-            <TimelineItem
-              title="Senior Software Engineer"
-              company="Global Finance Systems"
-              period="2016 — 2020"
-              description="Optimized HFT execution kernels using C++. Reduced latency by 45% through custom memory management and cache optimization."
-              tags={["C++", "Linux Kernel", "HFT"]}
-            />
-            <TimelineItem
-              title="Backend Engineer"
-              company="TechScale Solutions"
-              period="2013 — 2016"
-              description="Developed distributed microservices using Java and Spring Boot. Implemented CI/CD pipelines and automated testing suites."
-              tags={["Java", "Spring Boot", "Microservices"]}
-            />
+            {candidate.experiences?.map((exp: any, i: number) => (
+              <TimelineItem
+                key={exp.id}
+                title={exp.job_title}
+                company={exp.company_name}
+                period={`${exp.start_date} — ${exp.is_currently_work_here ? "Present" : exp.end_date}`}
+                description={exp.role_contribution}
+                tags={exp.technologies}
+                active={i === 0}
+              />
+            ))}
+            {candidate.experiences?.length === 0 && (
+              <p className="text-[var(--text-muted)] italic">
+                No experience added yet.
+              </p>
+            )}
           </div>
         );
       case "Resume":
@@ -89,10 +99,10 @@ function CandidateDetailContent() {
                 </span>
               </div>
               <h3 className="text-lg font-bold text-[var(--text-main)]">
-                Marcus_Thorne_CV_2024.pdf
+                {candidate?.resume_file_name}
               </h3>
               <p className="text-sm text-[var(--text-muted)] mb-6">
-                PDF Document • 2.4 MB • Uploaded 2 days ago
+                PDF Document • {candidate?.resume_size}
               </p>
               <div className="flex gap-3">
                 <button className="px-6 py-2.5 bg-primary text-black font-bold rounded-xl text-xs hover:shadow-glow transition-all">
@@ -104,88 +114,38 @@ function CandidateDetailContent() {
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="p-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface)]">
-                <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase mb-1">
-                  Portfolio
-                </p>
-                <Link
-                  href="#"
-                  className="text-primary text-sm font-semibold hover:underline flex items-center gap-2"
+              {candidate?.social_links?.map((link: any, i: number) => (
+                <div
+                  key={i}
+                  className="p-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface)]"
                 >
-                  github.com/mthorne-dev{" "}
-                  <span className="material-symbols-outlined text-sm">
-                    open_in_new
-                  </span>
-                </Link>
-              </div>
-              <div className="p-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface)]">
-                <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase mb-1">
-                  Personal Site
-                </p>
-                <Link
-                  href="#"
-                  className="text-primary text-sm font-semibold hover:underline flex items-center gap-2"
-                >
-                  mthorne.io{" "}
-                  <span className="material-symbols-outlined text-sm">
-                    open_in_new
-                  </span>
-                </Link>
-              </div>
+                  <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase mb-1">
+                    {link.platform}
+                  </p>
+                  <Link
+                    href={link.url}
+                    className="text-primary text-sm font-semibold hover:underline flex items-center gap-2"
+                  >
+                    {link.url}{" "}
+                    <span className="material-symbols-outlined text-sm">
+                      open_in_new
+                    </span>
+                  </Link>
+                </div>
+              ))}
             </div>
           </div>
         );
       case "Skills":
         return (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <SkillCategory
-              title="Languages"
-              skills={["Rust", "Go", "Solidity", "C++", "TypeScript", "Python"]}
-            />
-            <SkillCategory
-              title="Protocols & Tech"
-              skills={[
-                "EVM",
-                "IPFS",
-                "Zero Knowledge",
-                "Multi-sig Auth",
-                "libp2p",
-              ]}
-            />
-            <SkillCategory
-              title="Frameworks"
-              skills={["Hardhat", "Foundry", "React", "Next.js", "Express"]}
-            />
-            <SkillCategory
-              title="Infrastructure"
-              skills={["AWS", "Kubernetes", "Docker", "Terraform", "CI/CD"]}
-            />
-          </div>
-        );
-      case "Timeline":
-        return (
-          <div className="space-y-6">
-            <AuditLog
-              status="Application Received"
-              date="Feb 12, 2024"
-              details="Candidate applied via protocol referral link."
-            />
-            <AuditLog
-              status="Neural Screening"
-              date="Feb 12, 2024"
-              details="AI system matched candidate skills with 98% accuracy."
-            />
-            <AuditLog
-              status="Initial Review"
-              date="Feb 14, 2024"
-              details="Reviewed by Sarah Chen (Engineering Manager)."
-            />
-            <AuditLog
-              status="Stage Advanced"
-              date="Today"
-              details="Moved to 'Technical Interview' phase."
-              active
-            />
+            {candidate?.skills?.map((skill: any, i: number) => (
+              <SkillCategory
+                key={i}
+                title={skill.category}
+                skills={skill.skills}
+              />
+            ))}
           </div>
         );
       default:
@@ -601,33 +561,25 @@ function CandidateDetailContent() {
             <div>
               <div className="flex flex-wrap items-center gap-3 mb-2">
                 <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-[var(--text-main)]">
-                  Marcus Thorne
+                  {candidate?.first_name} {candidate?.last_name}
                 </h1>
                 <span className="px-2.5 py-0.5 rounded-lg bg-primary/10 text-primary text-[10px] font-bold border border-primary/20">
                   External Candidate
                 </span>
-                {jobCat && (
-                  <span
-                    className={`text-[9px] font-bold px-2 py-0.5 rounded-md border flex items-center gap-1 ${jobCat === "internal" ? "bg-blue-500/10 text-blue-600 border-blue-500/20" : "bg-purple-500/10 text-purple-600 border-purple-500/20"}`}
-                  >
-                    <span className="material-symbols-outlined text-[12px]">
-                      {jobCat === "internal" ? "shield_person" : "public"}
-                    </span>
-                    {jobCat.charAt(0).toUpperCase() + jobCat.slice(1)}
-                  </span>
-                )}
               </div>
               <p className="text-[var(--text-muted)] text-lg font-medium">
-                Senior Software Engineer{" "}
+                {candidate?.current_role}{" "}
                 <span className="opacity-30 mx-2">•</span>{" "}
-                <span className="text-primary/90">Open Source Specialist</span>
+                <span className="text-primary/90">
+                  {candidate?.current_company}
+                </span>
               </p>
               <div className="flex flex-wrap gap-4 mt-4">
                 <span className="flex items-center gap-1.5 text-[var(--text-muted)] text-sm font-medium">
                   <span className="material-symbols-outlined text-base text-primary/70">
                     location_on
                   </span>{" "}
-                  Berlin, Germany (Remote)
+                  {candidate?.city}, {candidate?.country}
                 </span>
                 <div className="flex gap-2">
                   <button
@@ -721,22 +673,22 @@ function CandidateDetailContent() {
                 <StatRow
                   icon="history_edu"
                   label="Experience"
-                  value="10+ Years"
+                  value={candidate?.total_experience}
                 />
                 <StatRow
                   icon="payments"
                   label="Expected Salary"
-                  value="$220k - $250k USD"
+                  value={candidate?.expected_salary}
                 />
                 <StatRow
                   icon="event_available"
                   label="Notice Period"
-                  value="Immediate"
+                  value={candidate?.availability_status}
                 />
                 <StatRow
                   icon="translate"
                   label="Languages"
-                  value="English, German"
+                  value={candidate?.languages}
                 />
               </div>
             </div>
@@ -745,8 +697,13 @@ function CandidateDetailContent() {
                 Assessment Scores
               </h3>
               <div className="space-y-6">
-                <ProgressItem label="Coding Challenge" score={100} />
-                <ProgressItem label="Architecture Interview" score={94} />
+                {candidate?.assessments?.map((score: any, index: number) => (
+                  <ProgressItem
+                    key={index}
+                    label={score.label}
+                    score={score.score}
+                  />
+                ))}
               </div>
               <button className="w-full mt-8 py-3 rounded-xl border border-[var(--border-subtle)] text-xs font-bold text-[var(--text-main)] hover:bg-primary/5 hover:border-primary/30 transition-all">
                 View Full Report

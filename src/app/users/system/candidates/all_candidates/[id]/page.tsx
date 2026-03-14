@@ -216,7 +216,14 @@ export default function CandidateDetailPage() {
                       Download CV
                     </button>
                   )}
-                  <button className="px-6 py-3 bg-(--input-bg) text-(--text-main) font-bold rounded-2xl flex items-center gap-2 border border-(--border-subtle) hover:bg-white/10 transition-all">
+                  <button
+                    onClick={() => {
+                      router.push(
+                        `/users/system/candidates/Add_candidate/basic_info?id=${candidate.id.replace("#", "")}`,
+                      );
+                    }}
+                    className="px-6 py-3 bg-(--input-bg) text-(--text-main) font-bold rounded-2xl flex items-center gap-2 border border-(--border-subtle) hover:bg-white/10 transition-all"
+                  >
                     <span className="material-symbols-outlined">edit</span> Edit
                     Profile
                   </button>
@@ -591,32 +598,32 @@ function StatItem({
 
 function StatusBadge({ status }: { status: string }) {
   const configs: any = {
-    [CandidateStatus.ACTIVE]: {
+    [CandidateStatus.Active]: {
       bg: "bg-emerald-500/10",
       text: "text-emerald-500",
       border: "border-emerald-500/20",
       dot: "bg-emerald-500",
       pulse: true,
     },
-    [CandidateStatus.PLACED]: {
+    [CandidateStatus.Placed]: {
       bg: "bg-blue-500/10",
       text: "text-blue-500",
       border: "border-blue-500/20",
       dot: "bg-blue-500",
     },
-    [CandidateStatus.PASSIVE]: {
+    PASSIVE: {
       bg: "bg-amber-500/10",
       text: "text-amber-500",
       border: "border-amber-500/20",
       dot: "bg-amber-500",
     },
-    [CandidateStatus.BLACKLISTED]: {
+    BLACKLISTED: {
       bg: "bg-red-500/10",
       text: "text-red-500",
       border: "border-red-500/20",
       dot: "bg-red-500",
     },
-    [CandidateStatus.ARCHIVED]: {
+    [CandidateStatus.Archived]: {
       bg: "bg-slate-500/10",
       text: "text-slate-500",
       border: "border-slate-500/20",
@@ -624,7 +631,7 @@ function StatusBadge({ status }: { status: string }) {
     },
   };
 
-  const config = configs[status] || configs[CandidateStatus.ACTIVE];
+  const config = configs[status] || configs[CandidateStatus.Active];
 
   return (
     <div

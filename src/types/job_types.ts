@@ -1,212 +1,182 @@
-// =============================================================================
-// Job Types — SkillSight ATS
-// =============================================================================
-// All types are derived from job_constants.ts as the single source of truth.
-// No hardcoded string literals here — if a constant list changes, the types
-// update automatically.
-// =============================================================================
+import { Timestamp, UUID } from "./common_types";
 
-import type {
-  departments,
-  jobCategories,
-  jobStatuses,
-  closeReasons,
-  locationTypes,
-  currencies,
-  teamMemberRoles,
-  memberStatuses,
-  hiringProtocols,
-  publishingPlatforms,
-} from "../constants/job_constants";
+// -----------------------------------------------------------------------------
+// Enums
+// -----------------------------------------------------------------------------
 
-// ---------------------------------------------------------------------------
-// Union types — derived from constants
-// ---------------------------------------------------------------------------
-
-/** e.g. "Engineering" | "Marketing" | "Design" | … */
-export type Department = (typeof departments)[number];
-
-/** "Internal" | "External" */
-export type JobCategory = (typeof jobCategories)[number];
-
-/** "Active" | "Draft" | "Paused" | "Closed" | "Urgent" */
-export type JobStatus = (typeof jobStatuses)[number];
-
-/** "Position Filled" | "Hiring Paused" | "Budget Adjustments" | "Other" */
-export type CloseReason = (typeof closeReasons)[number];
-
-/** "Remote" | "Hybrid" | "Onsite" */
-export type LocationType = (typeof locationTypes)[number];
-
-/** "USD" | "LKR" */
-export type Currency = (typeof currencies)[number];
-
-/** "Admin" | "Recruiter" | "Interviewer" */
-export type TeamMemberRole = (typeof teamMemberRoles)[number];
-
-/** "online" | "offline" */
-export type MemberStatus = (typeof memberStatuses)[number];
-
-/** "Internal Only" | "External Public" */
-export type HiringProtocol = (typeof hiringProtocols)[number];
-
-/** "LinkedIn" | "Indeed" | "Glassdoor" */
-export type PublishingPlatform = (typeof publishingPlatforms)[number];
-
-// ---------------------------------------------------------------------------
-// Pipeline Stats
-// ---------------------------------------------------------------------------
-
-export interface PipelineStats {
-  applied: number;
-  screening: number;
-  interview: number;
-  offer: number;
-  total: number;
+export enum WorkArrangement {
+  Remote = "REMOTE",
+  Hybrid = "HYBRID",
+  OnSite = "ON_SITE",
 }
 
-// ---------------------------------------------------------------------------
-// Hired Candidate (closed jobs)
-// ---------------------------------------------------------------------------
+export enum EmploymentType {
+  FullTime = "FULL_TIME",
+  PartTime = "PART_TIME",
+  Contract = "CONTRACT",
+  Intern = "INTERN",
+}
 
-export interface HiredCandidate {
+export enum JobStatus {
+  Draft = "DRAFT",
+  Active = "ACTIVE",
+  Closed = "CLOSED",
+  OnHold = "ON_HOLD",
+}
+
+export enum CandidateJobStatus {
+  Active = "ACTIVE",
+  Draft = "DRAFT",
+  Urgent = "URGENT",
+  Paused = "PAUSED",
+  Closed = "CLOSED",
+}
+
+export enum ProficiencyLevel {
+  Beginner = "BEGINNER",
+  Intermediate = "INTERMEDIATE",
+  Advanced = "ADVANCED",
+  Expert = "EXPERT",
+}
+
+export enum InterviewType {
+  AI = "AI",
+  Technical = "TECHNICAL",
+}
+
+export enum ChatUserType {
+  AI = "AI",
+  Candidate = "CANDIDATE",
+}
+
+export interface Department {
+  id: UUID;
   name: string;
-  /** Filename relative to /images/avatar-img/ */
-  avatar: string;
+  description: string | null;
+  is_active: boolean;
+  created_at: Timestamp;
+  updated_at: Timestamp;
+  created_by: UUID;
+  updated_by: UUID;
 }
 
-// ---------------------------------------------------------------------------
-// Benefits & Perks
-// ---------------------------------------------------------------------------
-
-export interface StandardBenefits {
-  healthInsurance: boolean;
-  unlimitedPTO: boolean;
-  matching401k: boolean;
-  parentalLeave: boolean;
-}
-
-export interface WorkLifeToggles {
-  flexibleHours: boolean;
-  remoteFirst: boolean;
-  mentalHealthDays: boolean;
-}
-
-export interface JobBenefits {
-  standard: StandardBenefits;
-  workLife: WorkLifeToggles;
-  /** Free-form perks, e.g. "Token Allocation (0.1%–0.5%)" */
-  customPerks: string[];
-}
-
-// ---------------------------------------------------------------------------
-// Compensation
-// ---------------------------------------------------------------------------
-
-export interface BonusEquityToggles {
-  performanceBonus: boolean;
-  signingBonus: boolean;
-  stockOptions: boolean;
-}
-
-export interface JobCompensation {
-  currency: Currency;
-  minSalary: number;
-  maxSalary: number;
-  bonusEquity: BonusEquityToggles;
-  /** Free-form add-ons, e.g. "401k Matching (up to 4%)" */
-  financialAddOns: string[];
-}
-
-// ---------------------------------------------------------------------------
-// Publish Settings
-// ---------------------------------------------------------------------------
-
-export interface JobPublishSettings {
-  protocol: HiringProtocol;
-  platforms: PublishingPlatform[];
-  hiringManager: string;
-  saveAsTemplate: boolean;
-}
-
-// ---------------------------------------------------------------------------
-// Hiring Team Member
-// ---------------------------------------------------------------------------
-
-export interface HiringTeamMember {
-  id: number;
+export interface Benefit {
+  id: UUID;
   name: string;
-  /** Filename relative to /images/avatar-img/ */
-  avatar: string;
-  role: string;
-  tag: TeamMemberRole;
-  status: MemberStatus;
-  stats: Array<{ label: string; value: string }>;
+  icon_url: string | null;
+  description: string | null;
+  created_at: Timestamp;
+  updated_at: Timestamp;
+  created_by: UUID;
+  updated_by: UUID;
 }
-
-// ---------------------------------------------------------------------------
-// Job Template
-// ---------------------------------------------------------------------------
 
 export interface JobTemplate {
-  id: number;
-  title: string;
-  category: Department;
-  /** Material Symbol icon name */
-  icon: string;
-  usage: number;
-  /** Ordered pipeline stage labels, e.g. ["Screening", "Technical Test", …] */
-  stages: string[];
+  id: UUID;
+  /** FK → Job — template linked to a base job */
+  job_id: UUID | null;
+  name: string;
+  is_active: boolean;
+  created_at: Timestamp;
+  updated_at: Timestamp;
+  created_by: UUID;
+  updated_by: UUID;
 }
 
-// ---------------------------------------------------------------------------
-// Core Job Model
-// ---------------------------------------------------------------------------
+export interface ExternalPublisher {
+  id: UUID;
+  name: string;
+  description: string | null;
+  is_active: boolean;
+  created_at: Timestamp;
+  updated_at: Timestamp;
+  created_by: UUID;
+  updated_by: UUID;
+}
 
 export interface Job {
-  // Identity
-  id: string;
+  id: UUID;
+  department_id: UUID;
+  /** FK → JobTemplate */
+  template_id: UUID | null;
+  /** FK → Benefit (primary benefit; many-to-many via JobBenefit) */
+  benefit_id: UUID | null;
   title: string;
-  department: Department;
-  category: JobCategory;
-  status: JobStatus;
-
-  // Location
-  location: string;
-  locationType: LocationType;
-
-  // Timestamps
-  postedAt: string;
-  createdAt: string;
-  updatedAt: string;
-
-  // Content
+  location: string | null;
+  work_arrangement: WorkArrangement;
+  employment_type: EmploymentType;
   description: string;
-  skills: string[];
+  is_internal: boolean;
+  salary_min: number | null;
+  salary_max: number | null;
+  /** e.g. "USD", "LKR" */
+  currency: string | null;
+  published_at: Timestamp | null;
+  created_at: Timestamp;
+  updated_at: Timestamp;
+  created_by: UUID;
+  updated_by: UUID;
+}
 
-  // Badge (active listings only)
-  tag?: string;
-  tagColor?: "primary" | "orange";
+/** Many-to-many: Job ↔ Benefit */
+export interface JobBenefit {
+  job_id: UUID;
+  benefit_id: UUID;
+  created_at: Timestamp;
+  updated_at: Timestamp;
+  created_by: UUID;
+  updated_by: UUID;
+}
 
-  // Pipeline metrics (active jobs)
-  stats?: PipelineStats;
+export interface JobSkill {
+  job_id: UUID;
+  skill_id: UUID;
+  /** Priority weight, e.g. 1–5 */
+  importance: number | null;
+  min_years: number | null;
+  created_at: Timestamp;
+  updated_at: Timestamp;
+  created_by: UUID;
+  updated_by: UUID;
+}
 
-  // Hiring team
-  /** Avatar filenames of assigned team members */
-  hiringTeamAvatars: string[];
+export interface JobHiringManager {
+  job_id: UUID;
+  hiring_manager_id: UUID;
+  created_at: Timestamp;
+  updated_at: Timestamp;
+  created_by: UUID;
+  updated_by: UUID;
+}
 
-  // Create-flow data
-  benefits: JobBenefits;
-  compensation: JobCompensation;
-  publishSettings: JobPublishSettings;
+/** Many-to-many: Job ↔ ExternalPublisher */
+export interface JobExternalPublisher {
+  job_id: UUID;
+  external_publisher_id: UUID;
+  created_at: Timestamp;
+  updated_at: Timestamp;
+  created_by: UUID;
+  updated_by: UUID;
+}
 
-  // Closed-job data
-  dateClosed?: string;
-  timeToFill?: string;
-  hiredCandidate?: HiredCandidate;
-  closeReason?: CloseReason;
-  closeReasonOther?: string;
+export interface JobStatusHistory {
+  id: UUID;
+  job_id: UUID;
+  status: JobStatus;
+  remark: string | null;
+  created_at: Timestamp;
+  updated_at: Timestamp;
+  created_by: UUID;
+  updated_by: UUID;
+}
 
-  // Template reference
-  templateId?: number | null;
+export interface JobScoreCard {
+  id: UUID;
+  job_id: UUID;
+  title: string;
+  description: string | null;
+  created_at: Timestamp;
+  updated_at: Timestamp;
+  created_by: UUID;
+  updated_by: UUID;
 }

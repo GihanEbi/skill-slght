@@ -1,9 +1,16 @@
 "use client";
-import React, { Suspense, useState, useCallback, memo } from "react";
+import React, { Suspense, useState, useCallback, memo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
+import {
+  fetchJobCandidates,
+  fetchAiMatchesForJob,
+  addCandidateToPipeline,
+  removeCandidateFromPipeline,
+} from "@/services/candidatePipelineService";
+import { Candidate } from "@/types/candidate_types";
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -30,10 +37,27 @@ function JobPipelineDetailPage() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [candidateToDelete, setCandidateToDelete] = useState<any>(null);
 
+  const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [aiMatches, setAiMatches] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
   const router = useRouter();
   const searchParams = useSearchParams();
-  const jobCat = searchParams.get("jobCat");
+  const jobId = searchParams.get("jobId");
 
+  useEffect(() => {
+    const loadData = async () => {
+      setIsLoading(true);
+      const cList = await fetchJobCandidates(jobId);
+      const mList = await fetchAiMatchesForJob(jobId);
+      setCandidates(cList);
+      setAiMatches(mList);
+      setIsLoading(false);
+    };
+    loadData();
+  }, [jobId]);
+
+  // stats should change with database stats
   const stats = [
     { label: "Total Candidates", value: "142", trend: "+12%", active: true },
     { label: "Screening", value: "45", subtitle: "Active" },
@@ -41,72 +65,6 @@ function JobPipelineDetailPage() {
     { label: "Interviewing", value: "8", subtitle: "Scheduled" },
     { label: "Offer", value: "2", subtitle: "Final Stage" },
   ];
-
-  const [candidates, setCandidates] = useState([
-    {
-      name: "Alex Rivers",
-      info: "Ex-Consensys • 8 yrs exp.",
-      status: "Reviewing",
-      updated: "2d ago",
-      skills: ["Rust", "Solidity", "Go"],
-      avatar: "alkesh.png",
-    },
-    {
-      name: "Sarah Chen",
-      info: "Ex-Coinbase • 5 yrs exp.",
-      status: "Interviewing",
-      updated: "Today",
-      skills: ["L2 Solutions", "DeFi Architecture"],
-      avatar: "ankit.png",
-    },
-    {
-      name: "Marcus Thorne",
-      info: "Open Source • 10 yrs exp.",
-      status: "Offer Extended",
-      updated: "1w ago",
-      skills: ["Protocol", "EVM"],
-      isUnicorn: true,
-      avatar: "user-preview.png",
-    },
-    {
-      name: "Elena Volkov",
-      info: "ZKP Specialist • 4 yrs exp.",
-      status: "Screening",
-      updated: "3h ago",
-      skills: ["Math", "Privacy"],
-      avatar: "gihan.jpeg",
-    },
-  ]);
-
-  const [aiMatches, setAiMatches] = useState([
-    {
-      name: "Marcus Thorne",
-      score: 98,
-      status: "New Match",
-      strength: "Rust / EVM Architecture",
-      bio: "High contribution to Ethereum core repos. Expert in low-level protocol optimization.",
-      avatar: "gihan.jpeg",
-      skills: ["Math", "Privacy"],
-    },
-    {
-      name: "Julian Voss",
-      score: 96,
-      status: "New Match",
-      strength: "Cryptography / Zero-Knowledge",
-      bio: "Lead author on several ZK-Rollup implementations. PhD in Applied Math.",
-      avatar: "avatar-2.jpg",
-      skills: ["Math", "Privacy"],
-    },
-    {
-      name: "Lina Wert",
-      score: 94,
-      status: "New Match",
-      strength: "Full-Stack Web3 / Go",
-      bio: "Built scalable indexing protocols. Strong focus on decentralized data availability.",
-      avatar: "avatar-4.jpg",
-      skills: ["Math", "Privacy"],
-    },
-  ]);
 
   const openEmailModal = useCallback((candidate: any) => {
     setSelectedCandidate(candidate);
@@ -128,20 +86,16 @@ function JobPipelineDetailPage() {
   };
 
   // function for remove the selected object from AI match and insert it to candidates
-  const handleAddToCandidates = useCallback(async (candidate: any) => {
+
+  const handleAddToCandidates = useCallback(async (aiMatch: any) => {
     setIsAdding(true);
-    await new Promise((resolve) => setTimeout(resolve, 800));
-    const tempCandidate = {
-      name: candidate.name,
-      info: candidate.bio,
-      status: "Reviewing",
-      updated: "Just now",
-      skills: candidate.skills,
-      avatar: candidate.avatar,
-    };
-    setCandidates((prev) => [...prev, tempCandidate]);
-    setAiMatches((prev) => prev.filter((item) => item.name !== candidate.name));
-    setIsAdding(false);
+    try {
+      const newCand = await addCandidateToPipeline(aiMatch);
+      setCandidates((prev) => [newCand, ...prev]);
+      setAiMatches((prev) => prev.filter((m) => m.id !== aiMatch.id));
+    } finally {
+      setIsAdding(false);
+    }
   }, []);
 
   const openDeleteModal = useCallback((candidate: any) => {
@@ -152,9 +106,9 @@ function JobPipelineDetailPage() {
   const confirmDelete = useCallback(async () => {
     if (candidateToDelete) {
       setIsDeleting(true);
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await removeCandidateFromPipeline(candidateToDelete.id);
       setCandidates((prev) =>
-        prev.filter((c: any) => c.name !== candidateToDelete.name),
+        prev.filter((c: any) => c.id !== candidateToDelete.id),
       );
       setIsDeleting(false);
       setShowDeleteModal(false);
@@ -404,16 +358,6 @@ function JobPipelineDetailPage() {
                 <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
                 Active
               </span>
-              {jobCat && (
-                <span
-                  className={`text-[9px] font-bold px-2 py-0.5 rounded-md border flex items-center gap-1 ${jobCat === "internal" ? "bg-blue-500/10 text-blue-600 border-blue-500/20" : "bg-purple-500/10 text-purple-600 border-purple-500/20"}`}
-                >
-                  <span className="material-symbols-outlined text-[12px]">
-                    {jobCat === "internal" ? "shield_person" : "public"}
-                  </span>
-                  {jobCat.charAt(0).toUpperCase() + jobCat.slice(1)}
-                </span>
-              )}
             </div>
             <p className="text-[var(--text-muted)] text-sm font-medium flex items-center gap-2">
               <span className="material-symbols-outlined text-base text-primary/70">
@@ -442,7 +386,7 @@ function JobPipelineDetailPage() {
 
         {/* Stats Grid */}
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
-          {stats.map((s, i) => (
+          {stats?.map((s, i) => (
             <div
               key={i}
               className="glass-panel p-5 rounded-2xl border-l-4 border-l-primary/30"
@@ -517,22 +461,22 @@ function JobPipelineDetailPage() {
                 exit={{ opacity: 0, y: 10 }}
               >
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-8 border-t border-[var(--border-subtle)]">
-                  {aiMatches.map((c, i) => (
+                  {aiMatches?.map((c, i) => (
                     <div
-                      key={i}
+                      key={c.id || i}
                       className="bg-primary/[0.03] border border-primary/10 rounded-2xl p-6 hover:border-primary/30 transition-all"
                     >
                       <div className="flex justify-between items-start mb-5">
                         <Image
-                          src={`/images/avatar-img/${c.avatar}`}
+                          src={`/images/avatar-img/${c?.avatar}`}
                           width={100}
                           height={100}
-                          alt={c.name}
+                          alt={c?.name}
                           className="w-12 h-12 rounded-xl bg-[var(--background)] shadow-sm"
                         />
                         <div className="text-right">
                           <div className="text-2xl font-bold text-primary tracking-tighter">
-                            {c.score}%
+                            {c?.score}%
                           </div>
                           <div className="text-[10px] font-bold text-[var(--text-muted)] opacity-60 uppercase tracking-tighter">
                             Match Index
@@ -540,10 +484,10 @@ function JobPipelineDetailPage() {
                         </div>
                       </div>
                       <h5 className="font-bold text-[var(--text-main)] mb-1">
-                        {c.name}
+                        {c?.name}
                       </h5>
                       <span className="inline-block px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 text-[10px] font-bold mb-4 border border-emerald-500/10">
-                        {c.status}
+                        {c?.status}
                       </span>
                       <div className="space-y-3 pt-4 border-t border-[var(--border-subtle)]">
                         <div>
@@ -551,11 +495,11 @@ function JobPipelineDetailPage() {
                             Top Strength
                           </p>
                           <p className="text-xs font-semibold text-[var(--text-main)]">
-                            {c.strength}
+                            {c?.strength}
                           </p>
                         </div>
                         <p className="text-xs text-[var(--text-muted)] leading-relaxed italic opacity-80">
-                          "{c.bio}"
+                          "{c?.bio}"
                         </p>
                       </div>
                       <button
@@ -626,9 +570,9 @@ function JobPipelineDetailPage() {
               animate="visible"
               className="grid grid-cols-1 md:grid-cols-2 gap-6"
             >
-              {candidates.map((c: any, i) => (
+              {candidates?.map((c: any, i) => (
                 <CandidateCard
-                  key={c.name}
+                  key={c.id || i}
                   candidate={c}
                   onEmailClick={openEmailModal}
                   onDeleteClick={openDeleteModal}
@@ -667,36 +611,44 @@ export default function JobPipelinePage() {
 const CandidateCard = memo(
   ({ candidate, onEmailClick, onDeleteClick }: any) => {
     const router = useRouter();
+
+    const flattenedSkills = React.useMemo(() => {
+      if (!candidate?.skills) return [];
+      return candidate.skills
+        .flatMap((s: any) => (typeof s === "string" ? [s] : s.skills || []))
+        .slice(0, 6);
+    }, [candidate?.skills]);
+
     return (
       <motion.div
         variants={itemVariants}
         whileHover={{ y: -3 }}
-        className={`glass-panel rounded-[2rem] p-7 transition-all shadow-sm border-[var(--border-subtle)] ${candidate.isUnicorn ? "border-primary/30 ring-1 ring-primary/10" : ""}`}
+        className={`glass-panel rounded-[2rem] p-7 transition-all shadow-sm border-[var(--border-subtle)] ${candidate?.isUnicorn ? "border-primary/30 ring-1 ring-primary/10" : ""}`}
       >
         <div className="flex justify-between items-start mb-6">
           <div className="flex items-center gap-5">
             <div className="w-16 h-16 rounded-2xl border border-[var(--border-subtle)] p-0.5 overflow-hidden bg-[var(--surface)] shadow-sm">
               <Image
-                src={`/images/avatar-img/${candidate.avatar}`}
+                src={`/images/avatar-img/${candidate?.avatar_id}`}
                 width={100}
                 height={100}
-                alt={candidate.name}
+                alt={candidate?.first_name + " " + candidate?.last_name}
                 className="w-full h-full object-cover rounded-[0.8rem]"
               />
             </div>
             <div>
               <h3 className="font-bold text-lg text-[var(--text-main)] tracking-tight">
-                {candidate.name}
+                {candidate?.first_name + " " + candidate?.last_name}
               </h3>
               <p className="text-xs font-medium text-[var(--text-muted)] mt-0.5">
-                {candidate.info}
+                {candidate?.current_role + " at " + candidate?.current_company}
               </p>
               <div className="flex gap-3 mt-3">
                 <span className="px-2.5 py-0.5 rounded-lg bg-primary/10 text-primary text-[10px] font-bold border border-primary/10">
-                  {candidate.status}
+                  {candidate?.status}
                 </span>
                 <span className="text-[var(--text-muted)] text-[10px] font-medium self-center opacity-60">
-                  Updated {candidate.updated}
+                  Updated {candidate?.updated}
                 </span>
               </div>
             </div>
@@ -707,12 +659,12 @@ const CandidateCard = memo(
             Technical Match
           </p>
           <div className="flex flex-wrap gap-2">
-            {candidate.skills.map((s: string, idx: number) => (
+            {flattenedSkills.map((skill: string, idx: number) => (
               <span
                 key={idx}
                 className="px-3 py-1 rounded-lg bg-[var(--input-bg)] text-[var(--text-main)] text-xs font-semibold border border-[var(--border-subtle)] hover:border-primary/40 transition-colors"
               >
-                {s}
+                {skill}
               </span>
             ))}
           </div>
@@ -722,13 +674,13 @@ const CandidateCard = memo(
             className="flex-grow py-3 rounded-xl active-tab-gradient text-white text-xs font-bold shadow-glow hover:translate-y-[-1px] transition-all"
             onClick={() => {
               router.push(
-                candidate.isUnicorn
-                  ? `/users/system/jobs/active_jobs/candidate_list/${candidate.name.toLowerCase().replace(" ", "-")}`
-                  : `/users/system/jobs/active_jobs/candidate_list/${candidate.name.toLowerCase().replace(" ", "-")}`,
+                candidate?.isUnicorn
+                  ? `/users/system/jobs/active_jobs/candidate_list/${candidate?.first_name?.toLowerCase()?.replace(" ", "-")}`
+                  : `/users/system/jobs/active_jobs/candidate_list/${candidate?.first_name?.toLowerCase()?.replace(" ", "-")}`,
               );
             }}
           >
-            {candidate.isUnicorn ? "Manage Offer" : "Move Stage"}
+            {candidate?.isUnicorn ? "Manage Offer" : "Move Stage"}
           </button>
           <button
             onClick={() => onEmailClick(candidate)}

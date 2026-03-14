@@ -3,179 +3,142 @@ import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import {
-  LS_KEY,
-  ACTIVE_JOBS_KEY,
+  getDraft,
+  publishJob,
+  saveJobAsDraft,
   fetchHiringManagers,
-  fetchTargetPlatforms,
+  fetchExternalPublishers,
+  JobDraft,
+  WORK_ARRANGEMENT_LABELS,
+  EMPLOYMENT_TYPE_LABELS,
 } from "@/services/jobService";
-import { Job } from "@/types/job_types";
-import { createBlankJob } from "@/models/Job";
+import { JobStatus, WorkArrangement, EmploymentType } from "@/types/job_types";
+import { UUID } from "@/types/common_types";
 
 type FlowState = "idle" | "publishing" | "success";
 
 export default function PreviewPage() {
   const router = useRouter();
+
+  // ── Fetched data ──────────────────────────────────────────────────────
+  const [hiringManagers, setHiringManagers] = useState<
+    { id: UUID; name: string }[]
+  >([]);
+  const [externalPublishers, setExternalPublishers] = useState<
+    { id: UUID; name: string }[]
+  >([]);
+
+  // ── Draft state ───────────────────────────────────────────────────────
+  const [draft, setDraft] = useState<JobDraft | null>(null);
+
+  // ── Publish settings ──────────────────────────────────────────────────
+  const [isInternal, setIsInternal] = useState(true);
+  const [selectedPublisherIds, setSelectedPublisherIds] = useState<UUID[]>([]);
+  const [selectedManagerId, setSelectedManagerId] = useState<UUID>("");
+  const [saveAsTemplate, setSaveAsTemplate] = useState(false);
+  const [isManagerDropdownOpen, setIsManagerDropdownOpen] = useState(false);
+
+  // ── UI state ──────────────────────────────────────────────────────────
   const [viewMode, setViewMode] = useState<"desktop" | "mobile">("desktop");
   const [showPublishModal, setShowPublishModal] = useState(false);
   const [flowState, setFlowState] = useState<FlowState>("idle");
 
-  const [hiringType, setHiringType] = useState<"internal" | "external">(
-    "internal",
-  );
-  const [platforms, setPlatforms] = useState<string[]>([]);
-  const [saveAsTemplate, setSaveAsTemplate] = useState(false);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [selectedManager, setSelectedManager] = useState("");
-
-  const [jobData, setJobData] = useState<Job>(createBlankJob());
-  const [managers, setManagers] = useState<string[]>([]);
-  const [availablePlatforms, setAvailablePlatforms] = useState<string[]>([]);
-
-  // ── Initial Data Fetching ──────────────────────────────────────────────
+  // ── Load data ─────────────────────────────────────────────────────────
   useEffect(() => {
-    const loadConstants = async () => {
+    const load = async () => {
       try {
-        const [mList, pList] = await Promise.all([
+        const [managers, publishers] = await Promise.all([
           fetchHiringManagers(),
-          fetchTargetPlatforms(),
+          fetchExternalPublishers(),
         ]);
-        setManagers(mList);
-        setAvailablePlatforms(pList);
-        if (mList.length > 0 && !selectedManager) {
-          setSelectedManager(mList[0]);
-        }
+        setHiringManagers(managers);
+        setExternalPublishers(publishers);
+        if (managers.length > 0) setSelectedManagerId(managers[0].id);
       } catch (e) {
-        console.error("Failed to load preview constants", e);
+        console.error("Failed to load preview data:", e);
       }
     };
-    loadConstants();
+    load();
   }, []);
 
-  // ── Auto-Mobile View Detection ──────────────────────────────────────────
+  // ── Hydrate draft ─────────────────────────────────────────────────────
+  useEffect(() => {
+    const d = getDraft();
+    setDraft(d);
+    setIsInternal(d.is_internal);
+    setSelectedPublisherIds(d.external_publisher_ids);
+    setSaveAsTemplate(d.save_as_template);
+    if (d.hiring_manager_ids.length > 0)
+      setSelectedManagerId(d.hiring_manager_ids[0]);
+  }, []);
+
+  // ── Auto-detect mobile ────────────────────────────────────────────────
   useEffect(() => {
     const mql = window.matchMedia("(max-width: 768px)");
     const handler = (e: MediaQueryListEvent | MediaQueryList) => {
       if (e.matches) setViewMode("mobile");
     };
-    mql.addEventListener("change", handler);
+    mql.addEventListener("change", handler as any);
     handler(mql);
-    return () => mql.removeEventListener("change", handler);
+    return () => mql.removeEventListener("change", handler as any);
   }, []);
 
-  // ── Hydration ────────────────────────────────────────────────────────────
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(LS_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        setJobData(parsed);
+  // ── Toggle external publisher ─────────────────────────────────────────
+  const togglePublisher = (id: UUID) => {
+    setSelectedPublisherIds((prev) =>
+      prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id],
+    );
+  };
 
-        // Sync publish settings state if they already exist
-        if (parsed.publishSettings) {
-          const ps = parsed.publishSettings;
-          setHiringType(
-            ps.protocol === "Internal Only" ? "internal" : "external",
-          );
-          setPlatforms(ps.platforms || []);
-          setSelectedManager(ps.hiringManager || "");
-          setSaveAsTemplate(ps.saveAsTemplate || false);
-        }
-      }
-    } catch (e) {
-      console.error("Preview hydration failed", e);
-    }
-  }, []);
+  // ── Build final draft with publish settings ───────────────────────────
+  const buildFinalDraft = (): JobDraft => ({
+    ...(draft ?? getDraft()),
+    is_internal: isInternal,
+    external_publisher_ids: isInternal ? [] : selectedPublisherIds,
+    external_publisher_names: isInternal
+      ? []
+      : externalPublishers
+          .filter((p) => selectedPublisherIds.includes(p.id))
+          .map((p) => p.name),
+    hiring_manager_ids: selectedManagerId ? [selectedManagerId] : [],
+    hiring_manager_names: selectedManagerId
+      ? [hiringManagers.find((m) => m.id === selectedManagerId)?.name ?? ""]
+      : [],
+    save_as_template: saveAsTemplate,
+  });
 
+  // ── Publish ───────────────────────────────────────────────────────────
   const handleStartPublish = () => {
-    // 1. Merge final settings into jobData
-    const finalJob: Job = {
-      ...jobData,
-      category: hiringType === "internal" ? "Internal" : "External",
-      publishSettings: {
-        protocol:
-          hiringType === "internal" ? "Internal Only" : "External Public",
-        platforms: platforms as any,
-        hiringManager: selectedManager,
-        saveAsTemplate,
-      },
-      status: "Active", // Final status
-      updatedAt: new Date().toISOString(),
-    };
-
-    // 2. Persist to Active Jobs Array
-    try {
-      const activeRaw = localStorage.getItem(ACTIVE_JOBS_KEY);
-      const activeJobs = activeRaw ? JSON.parse(activeRaw) : [];
-
-      if (Array.isArray(activeJobs)) {
-        activeJobs.push(finalJob);
-        localStorage.setItem(ACTIVE_JOBS_KEY, JSON.stringify(activeJobs));
-      } else {
-        localStorage.setItem(ACTIVE_JOBS_KEY, JSON.stringify([finalJob]));
-      }
-
-      // 3. Clear the creation draft
-      localStorage.removeItem(LS_KEY);
-    } catch (e) {
-      console.error("Failed to publish job", e);
-    }
-
-    // 4. Trigger Animation
+    const finalDraft = buildFinalDraft();
+    publishJob(finalDraft);
     setShowPublishModal(false);
     setFlowState("publishing");
     setTimeout(() => setFlowState("success"), 2500);
   };
 
+  // ── Save as draft ─────────────────────────────────────────────────────
   const handleSaveDraft = () => {
-    // 1. Merge final settings but keep as draft
-    const finalJob: Job = {
-      ...jobData,
-      category: hiringType === "internal" ? "Internal" : "External",
-      publishSettings: {
-        protocol:
-          hiringType === "internal" ? "Internal Only" : "External Public",
-        platforms: platforms as any,
-        hiringManager: selectedManager,
-        saveAsTemplate,
-      },
-      status: "Draft",
-      updatedAt: new Date().toISOString(),
-    };
-
-    // 2. Persist to Active Jobs Array
-    try {
-      const activeRaw = localStorage.getItem(ACTIVE_JOBS_KEY);
-      const activeJobs = activeRaw ? JSON.parse(activeRaw) : [];
-
-      if (Array.isArray(activeJobs)) {
-        activeJobs.push(finalJob);
-        localStorage.setItem(ACTIVE_JOBS_KEY, JSON.stringify(activeJobs));
-      } else {
-        localStorage.setItem(ACTIVE_JOBS_KEY, JSON.stringify([finalJob]));
-      }
-
-      // 3. Clear the creation draft
-      localStorage.removeItem(LS_KEY);
-    } catch (e) {
-      console.error("Failed to save draft", e);
-    }
-
+    const finalDraft = buildFinalDraft();
+    saveJobAsDraft(finalDraft);
     setFlowState("publishing");
-    // Simulate a shorter save time for draft
-    setTimeout(() => {
-      router.push("/users/system/jobs/active_jobs");
-    }, 1500);
+    setTimeout(() => router.push("/users/system/jobs/active_jobs"), 1500);
   };
 
-  const togglePlatform = (p: string) => {
-    setPlatforms((prev) =>
-      prev.includes(p) ? prev.filter((item) => item !== p) : [...prev, p],
-    );
-  };
+  // ── Helpers ───────────────────────────────────────────────────────────
+  const selectedManagerName =
+    hiringManagers.find((m) => m.id === selectedManagerId)?.name ?? "";
+  const symbol =
+    draft?.currency === "LKR"
+      ? "LKR "
+      : draft?.currency === "EUR"
+        ? "€"
+        : draft?.currency === "GBP"
+          ? "£"
+          : "$";
 
   return (
     <div className="min-h-screen flex flex-col mesh-gradient rounded-3xl no-scrollbar bg-[var(--background)]">
-      {/* --- 1. PUBLISH SETTINGS MODAL --- */}
+      {/* --- Publish Settings Modal --- */}
       <AnimatePresence>
         {showPublishModal && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -197,27 +160,30 @@ export default function PreviewPage() {
                 <h2 className="text-2xl font-bold text-[var(--text-main)] tracking-tight mb-6">
                   Deployment Settings
                 </h2>
+
                 <div className="space-y-8">
+                  {/* Hiring Protocol */}
                   <div className="space-y-3">
                     <label className="text-xs font-bold text-[var(--text-muted)]">
                       Hiring Protocol
                     </label>
                     <div className="flex gap-3">
-                      <TypeButtonSmall
+                      <TypeButton
                         label="Internal Only"
-                        active={hiringType === "internal"}
-                        onClick={() => setHiringType("internal")}
+                        active={isInternal}
+                        onClick={() => setIsInternal(true)}
                       />
-                      <TypeButtonSmall
+                      <TypeButton
                         label="External Public"
-                        active={hiringType === "external"}
-                        onClick={() => setHiringType("external")}
+                        active={!isInternal}
+                        onClick={() => setIsInternal(false)}
                       />
                     </div>
                   </div>
 
+                  {/* External Publishers */}
                   <AnimatePresence>
-                    {hiringType === "external" && (
+                    {!isInternal && (
                       <motion.div
                         initial={{ height: 0, opacity: 0 }}
                         animate={{ height: "auto", opacity: 1 }}
@@ -228,13 +194,17 @@ export default function PreviewPage() {
                           Target Platforms
                         </label>
                         <div className="flex flex-wrap gap-2">
-                          {availablePlatforms.map((p) => (
+                          {externalPublishers.map((p) => (
                             <button
-                              key={p}
-                              onClick={() => togglePlatform(p)}
-                              className={`px-4 py-2 rounded-xl border text-[11px] font-bold transition-all ${platforms.includes(p) ? "bg-primary/20 border-primary text-primary" : "bg-[var(--surface)] border-[var(--border-subtle)] text-[var(--text-muted)]"}`}
+                              key={p.id}
+                              onClick={() => togglePublisher(p.id)}
+                              className={`px-4 py-2 rounded-xl border text-[11px] font-bold transition-all ${
+                                selectedPublisherIds.includes(p.id)
+                                  ? "bg-primary/20 border-primary text-primary"
+                                  : "bg-[var(--surface)] border-[var(--border-subtle)] text-[var(--text-muted)]"
+                              }`}
                             >
-                              {p}
+                              {p.name}
                             </button>
                           ))}
                         </div>
@@ -242,47 +212,61 @@ export default function PreviewPage() {
                     )}
                   </AnimatePresence>
 
+                  {/* Hiring Manager */}
                   <div className="space-y-3 relative">
                     <label className="text-xs font-bold text-[var(--text-muted)]">
                       Hiring Manager
                     </label>
                     <button
-                      onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                      className="premium-input rounded-2xl py-3.5 px-5 text-sm font-semibold text-[var(--text-main)] flex items-center justify-between hover:border-primary/50 transition-all bg-[var(--surface)]"
+                      onClick={() =>
+                        setIsManagerDropdownOpen(!isManagerDropdownOpen)
+                      }
+                      className="w-full premium-input rounded-2xl py-3.5 px-5 text-sm font-semibold text-[var(--text-main)] flex items-center justify-between hover:border-primary/50 transition-all bg-[var(--surface)]"
                     >
-                      <span>{selectedManager}</span>
+                      <span>{selectedManagerName || "Select Manager"}</span>
                       <motion.span
-                        animate={{ rotate: isDropdownOpen ? 180 : 0 }}
+                        animate={{ rotate: isManagerDropdownOpen ? 180 : 0 }}
                         className="material-symbols-outlined text-primary"
                       >
                         expand_more
                       </motion.span>
                     </button>
                     <AnimatePresence>
-                      {isDropdownOpen && (
-                        <motion.div
-                          initial={{ opacity: 0, y: -5 }}
-                          animate={{ opacity: 1, y: 5 }}
-                          exit={{ opacity: 0, y: -5 }}
-                          className="absolute w-full z-[110] rounded-2xl border border-[var(--glass-border)] shadow-2xl overflow-hidden bg-[var(--surface)] p-1 mt-2"
-                        >
-                          {managers.map((m) => (
-                            <button
-                              key={m}
-                              onClick={() => {
-                                setSelectedManager(m);
-                                setIsDropdownOpen(false);
-                              }}
-                              className={`w-full text-left px-4 py-3 text-sm font-semibold rounded-xl ${selectedManager === m ? "text-primary bg-primary/10" : "text-[var(--text-main)] hover:bg-primary/5"}`}
-                            >
-                              {m}
-                            </button>
-                          ))}
-                        </motion.div>
+                      {isManagerDropdownOpen && (
+                        <>
+                          <motion.div
+                            initial={{ opacity: 0, y: -5 }}
+                            animate={{ opacity: 1, y: 5 }}
+                            exit={{ opacity: 0, y: -5 }}
+                            className="absolute w-full z-[110] rounded-2xl border border-[var(--glass-border)] shadow-2xl overflow-hidden bg-[var(--surface)] p-1 mt-2"
+                          >
+                            {hiringManagers.map((m) => (
+                              <button
+                                key={m.id}
+                                onClick={() => {
+                                  setSelectedManagerId(m.id);
+                                  setIsManagerDropdownOpen(false);
+                                }}
+                                className={`w-full text-left px-4 py-3 text-sm font-semibold rounded-xl ${
+                                  selectedManagerId === m.id
+                                    ? "text-primary bg-primary/10"
+                                    : "text-[var(--text-main)] hover:bg-primary/5"
+                                }`}
+                              >
+                                {m.name}
+                              </button>
+                            ))}
+                          </motion.div>
+                          <div
+                            className="fixed inset-0 z-[100]"
+                            onClick={() => setIsManagerDropdownOpen(false)}
+                          />
+                        </>
                       )}
                     </AnimatePresence>
                   </div>
 
+                  {/* Save as template */}
                   <div className="pt-6 border-t border-[var(--border-subtle)]">
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-bold text-[var(--text-main)]">
@@ -290,7 +274,11 @@ export default function PreviewPage() {
                       </span>
                       <button
                         onClick={() => setSaveAsTemplate(!saveAsTemplate)}
-                        className={`w-11 h-6 rounded-full transition-all relative flex items-center px-1 ${saveAsTemplate ? "bg-primary shadow-glow" : "bg-black/10 dark:bg-white/10"}`}
+                        className={`w-11 h-6 rounded-full transition-all relative flex items-center px-1 ${
+                          saveAsTemplate
+                            ? "bg-primary shadow-glow"
+                            : "bg-black/10 dark:bg-white/10"
+                        }`}
                       >
                         <motion.div
                           animate={{ x: saveAsTemplate ? 20 : 0 }}
@@ -300,16 +288,17 @@ export default function PreviewPage() {
                     </div>
                   </div>
                 </div>
+
                 <div className="flex flex-col sm:flex-row gap-4 mt-10">
                   <button
                     onClick={() => setShowPublishModal(false)}
-                    className="flex-1 py-3.5 text-sm font-bold text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors order-2 sm:order-1"
+                    className="flex-1 py-3.5 text-sm font-bold text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleStartPublish}
-                    className="flex-[2] active-tab-gradient py-3.5 rounded-2xl text-white font-bold text-sm shadow-glow order-1 sm:order-2"
+                    className="flex-[2] active-tab-gradient py-3.5 rounded-2xl text-white font-bold text-sm shadow-glow"
                   >
                     Confirm & Publish
                   </button>
@@ -320,7 +309,7 @@ export default function PreviewPage() {
         )}
       </AnimatePresence>
 
-      {/* --- 2. MODERN LOADER SCREEN --- */}
+      {/* --- Publishing Loader --- */}
       <AnimatePresence>
         {flowState === "publishing" && (
           <motion.div
@@ -352,7 +341,7 @@ export default function PreviewPage() {
         )}
       </AnimatePresence>
 
-      {/* --- 3. SUCCESS MODAL --- */}
+      {/* --- Success Modal --- */}
       <AnimatePresence>
         {flowState === "success" && (
           <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
@@ -375,7 +364,7 @@ export default function PreviewPage() {
                 Job Post Live
               </h2>
               <p className="text-sm text-[var(--text-muted)] font-medium mb-8">
-                Successfully Published. Candidates can now initialize
+                Successfully published. Candidates can now initialize
                 applications.
               </p>
               <div className="space-y-3">
@@ -397,21 +386,22 @@ export default function PreviewPage() {
         )}
       </AnimatePresence>
 
-      {/* --- MAIN PAGE CONTENT --- */}
+      {/* Step header */}
       <header className="w-full px-4 pt-6 md:pt-10">
         <div className="max-w-3xl mx-auto flex items-center justify-between relative px-2">
           <StepItem icon="check_circle" label="Details" completed />
-          <StepLine active />
+          <StepLine />
           <StepItem icon="check_circle" label="Benefits" completed />
-          <StepLine active />
+          <StepLine />
           <StepItem icon="check_circle" label="Compensation" completed />
-          <StepLine active />
+          <StepLine />
           <StepItem icon="visibility" label="Preview" active />
         </div>
       </header>
 
       <main className="flex-1 max-w-7xl mx-auto w-full px-4 py-8 md:py-12">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start pb-32">
+          {/* Preview Panel */}
           <div className="col-span-1 lg:col-span-8 order-2 lg:order-1">
             <motion.div
               initial={{ opacity: 0, y: 15 }}
@@ -430,20 +420,28 @@ export default function PreviewPage() {
                 <div className="hidden md:flex bg-[var(--input-bg)] p-1.5 rounded-2xl border border-[var(--border-subtle)] self-start shadow-sm">
                   <button
                     onClick={() => setViewMode("desktop")}
-                    className={`px-5 py-2 rounded-xl text-xs font-bold transition-all ${viewMode === "desktop" ? "bg-primary text-white shadow-glow" : "text-[var(--text-muted)] hover:text-primary"}`}
+                    className={`px-5 py-2 rounded-xl text-xs font-bold transition-all ${
+                      viewMode === "desktop"
+                        ? "bg-primary text-white shadow-glow"
+                        : "text-[var(--text-muted)] hover:text-primary"
+                    }`}
                   >
                     Desktop
                   </button>
                   <button
                     onClick={() => setViewMode("mobile")}
-                    className={`px-5 py-2 rounded-xl text-xs font-bold transition-all ${viewMode === "mobile" ? "bg-primary text-white shadow-glow" : "text-[var(--text-muted)] hover:text-primary"}`}
+                    className={`px-5 py-2 rounded-xl text-xs font-bold transition-all ${
+                      viewMode === "mobile"
+                        ? "bg-primary text-white shadow-glow"
+                        : "text-[var(--text-muted)] hover:text-primary"
+                    }`}
                   >
                     Mobile
                   </button>
                 </div>
               </div>
 
-              {/* BROWSER MOCKUP */}
+              {/* Browser Mockup */}
               <motion.div
                 animate={{
                   width: viewMode === "desktop" ? "100%" : "min(100%, 375px)",
@@ -452,12 +450,14 @@ export default function PreviewPage() {
               >
                 <div className="bg-white/5 px-6 py-4 flex items-center gap-3 border-b border-white/5">
                   <div className="flex gap-2">
-                    <div className="w-3 h-3 rounded-full bg-red-500/30"></div>
-                    <div className="w-3 h-3 rounded-full bg-amber-500/30"></div>
-                    <div className="w-3 h-3 rounded-full bg-emerald-500/30"></div>
+                    <div className="w-3 h-3 rounded-full bg-red-500/30" />
+                    <div className="w-3 h-3 rounded-full bg-amber-500/30" />
+                    <div className="w-3 h-3 rounded-full bg-emerald-500/30" />
                   </div>
                   <div className="mx-auto bg-white/5 px-4 py-1.5 rounded-lg text-[10px] text-slate-500 font-mono truncate max-w-[75%] border border-white/5">
-                    careers.skill-slight.com/protocol-829
+                    careers.company.com/jobs/
+                    {draft?.title?.toLowerCase().replace(/\s+/g, "-") ??
+                      "position"}
                   </div>
                 </div>
 
@@ -465,35 +465,54 @@ export default function PreviewPage() {
                   <div className="space-y-6">
                     <div className="flex flex-wrap gap-2.5">
                       <span className="px-3 py-1 rounded-lg bg-primary/10 text-primary text-[10px] font-bold tracking-tight border border-primary/20">
-                        {hiringType === "internal" ? "Internal" : "External"}
+                        {isInternal ? "Internal" : "External"}
                       </span>
                       <span className="px-3 py-1 rounded-lg bg-emerald-500/10 text-emerald-500 text-[10px] font-bold tracking-tight border border-emerald-500/20">
-                        {jobData.department || "General"}
+                        {draft?.department_name || "General"}
                       </span>
+                      {draft?.employment_type && (
+                        <span className="px-3 py-1 rounded-lg bg-blue-500/10 text-blue-400 text-[10px] font-bold tracking-tight border border-blue-400/20">
+                          {EMPLOYMENT_TYPE_LABELS[
+                            draft.employment_type as EmploymentType
+                          ] ?? draft.employment_type}
+                        </span>
+                      )}
                     </div>
+
                     <h2 className="text-4xl md:text-5xl font-bold text-white leading-[1.1] tracking-tight">
-                      {jobData.title || "Untitled Position"}
+                      {draft?.title || "Untitled Position"}
                     </h2>
+
                     <div className="flex flex-wrap gap-8 text-slate-400 text-sm font-medium">
                       <div className="flex items-center gap-2">
                         <span className="material-symbols-outlined text-primary text-xl">
                           location_on
                         </span>
-                        {jobData.location || "Remote"} ({jobData.locationType})
+                        {draft?.location || "Remote"} (
+                        {WORK_ARRANGEMENT_LABELS[
+                          draft?.work_arrangement as WorkArrangement
+                        ] ?? draft?.work_arrangement}
+                        )
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className="material-symbols-outlined text-primary text-xl">
-                          payments
-                        </span>
-                        {jobData.compensation.currency === "USD" ? "$" : "LKR "}
-                        {(jobData.compensation.minSalary / 1000).toFixed(0)}k —{" "}
-                        {(jobData.compensation.maxSalary / 1000).toFixed(0)}k
-                      </div>
+                      {draft?.salary_min && draft?.salary_max && (
+                        <div className="flex items-center gap-2">
+                          <span className="material-symbols-outlined text-primary text-xl">
+                            payments
+                          </span>
+                          {symbol}
+                          {(draft.salary_min / 1000).toFixed(0)}k — {symbol}
+                          {(draft.salary_max / 1000).toFixed(0)}k
+                        </div>
+                      )}
                     </div>
                   </div>
-                  <div className="h-px bg-white/10"></div>
+
+                  <div className="h-px bg-white/10" />
+
                   <div
-                    className={`grid gap-10 ${viewMode === "desktop" ? "grid-cols-3" : "grid-cols-1"}`}
+                    className={`grid gap-10 ${
+                      viewMode === "desktop" ? "grid-cols-3" : "grid-cols-1"
+                    }`}
                   >
                     <div className="md:col-span-2 space-y-8 text-slate-400 leading-relaxed text-sm">
                       <div>
@@ -504,58 +523,57 @@ export default function PreviewPage() {
                           className="prose prose-invert max-w-none text-slate-400"
                           dangerouslySetInnerHTML={{
                             __html:
-                              jobData.description || "No description provided.",
+                              draft?.description || "No description provided.",
                           }}
                         />
                       </div>
-                      {jobData.skills.length > 0 && (
+                      {(draft?.skill_names?.length ?? 0) > 0 && (
                         <div>
                           <h3 className="text-lg font-bold text-white mb-3">
                             Expertise
                           </h3>
                           <ul className="space-y-3 list-disc pl-5 marker:text-primary">
-                            {jobData.skills.map((s, i) => (
+                            {draft?.skill_names?.map((s, i) => (
                               <li key={i}>{s}</li>
                             ))}
                           </ul>
                         </div>
                       )}
                     </div>
+
                     <div className="space-y-8">
-                      {jobData.skills.length > 0 && (
-                        <SidebarPreviewStat
+                      {(draft?.skill_names?.length ?? 0) > 0 && (
+                        <SidebarStat
                           title="Key Expertise"
-                          items={jobData.skills.slice(0, 4)}
+                          items={draft?.skill_names?.slice(0, 4) ?? []}
                         />
                       )}
                       <div className="grid grid-cols-1 gap-3">
-                        {jobData.benefits.standard.healthInsurance && (
-                          <BenefitBadgePreview
-                            icon="health_and_safety"
-                            label="Global Health Insurance"
-                          />
-                        )}
-                        {jobData.benefits.standard.unlimitedPTO && (
-                          <BenefitBadgePreview
-                            icon="flight_takeoff"
-                            label="Unlimited Paid Leave"
-                          />
-                        )}
-                        {jobData.compensation.bonusEquity.stockOptions && (
-                          <BenefitBadgePreview
+                        {(draft?.benefit_names ?? [])
+                          .slice(0, 3)
+                          .map((name, i) => (
+                            <BenefitBadge key={i} icon="redeem" label={name} />
+                          ))}
+                        {draft?.stock_options && (
+                          <BenefitBadge
                             icon="savings"
-                            label="Equity & Token Grants"
+                            label="Equity & Stock Options"
                           />
                         )}
-                        {jobData.benefits.customPerks
+                        {(draft?.custom_perks ?? [])
                           .slice(0, 2)
                           .map((perk, i) => (
-                            <BenefitBadgePreview
-                              key={i}
-                              icon="star"
-                              label={perk}
-                            />
+                            <BenefitBadge key={i} icon="star" label={perk} />
                           ))}
+                        {draft?.work_life_flexible_hours && (
+                          <BenefitBadge
+                            icon="schedule"
+                            label="Flexible Hours"
+                          />
+                        )}
+                        {draft?.work_life_remote_first && (
+                          <BenefitBadge icon="home_work" label="Remote-First" />
+                        )}
                       </div>
                     </div>
                   </div>
@@ -564,14 +582,14 @@ export default function PreviewPage() {
             </motion.div>
           </div>
 
-          {/* AI CHECKLIST SIDEPANEL - KEPT THE SHINE */}
+          {/* Sidebar Checklist */}
           <div className="col-span-1 lg:col-span-4 lg:sticky lg:top-10 order-1 lg:order-2">
             <motion.div
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               className="glass-panel rounded-[2.5rem] p-8 shadow-glow relative overflow-hidden border-primary/10"
             >
-              <div className="absolute top-0 right-0 w-48 h-48 bg-primary/10 blur-[60px] rounded-full pointer-events-none"></div>
+              <div className="absolute top-0 right-0 w-48 h-48 bg-primary/10 blur-[60px] rounded-full pointer-events-none" />
               <div className="relative z-10 space-y-8">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg text-white">
@@ -588,11 +606,32 @@ export default function PreviewPage() {
                     </p>
                   </div>
                 </div>
+
                 <div className="space-y-4">
-                  <CheckItem label="Protocol fields verified" />
-                  <CheckItem label="Compensation benchmarked" />
-                  <CheckItem label="Candidate pipeline active" />
+                  <CheckItem
+                    label="Job title & description verified"
+                    done={!!draft?.title && !!draft?.description}
+                  />
+                  <CheckItem
+                    label="Department & location set"
+                    done={!!draft?.department_id && !!draft?.location}
+                  />
+                  <CheckItem
+                    label="Skills defined"
+                    done={(draft?.skill_names?.length ?? 0) > 0}
+                  />
+                  <CheckItem
+                    label="Compensation configured"
+                    done={
+                      draft?.salary_min !== null && draft?.salary_max !== null
+                    }
+                  />
+                  <CheckItem
+                    label="Benefits selected"
+                    done={(draft?.benefit_ids?.length ?? 0) > 0}
+                  />
                 </div>
+
                 <div className="p-5 bg-primary/5 rounded-2xl border border-primary/10 text-center">
                   <p className="text-xs text-[var(--text-muted)] italic leading-relaxed font-medium">
                     "Everything looks optimized. Publishing will trigger 24-hour
@@ -639,29 +678,60 @@ export default function PreviewPage() {
   );
 }
 
-// --- REFINED HELPER COMPONENTS ---
-
-function TypeButtonSmall({ label, active, onClick }: any) {
+// ---------------------------------------------------------------------------
+// Sub-components
+// ---------------------------------------------------------------------------
+function TypeButton({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
   return (
     <button
       onClick={onClick}
-      className={`flex-1 py-3 rounded-xl border transition-all text-xs font-bold ${active ? "bg-primary text-white shadow-glow border-primary" : "bg-[var(--surface)] border-[var(--border-subtle)] text-[var(--text-muted)] hover:border-primary/40"}`}
+      className={`flex-1 py-3 rounded-xl border transition-all text-xs font-bold ${
+        active
+          ? "bg-primary text-white shadow-glow border-primary"
+          : "bg-[var(--surface)] border-[var(--border-subtle)] text-[var(--text-muted)] hover:border-primary/40"
+      }`}
     >
       {label}
     </button>
   );
 }
 
-function StepItem({ icon, label, active = false, completed = false }: any) {
+function StepItem({
+  icon,
+  label,
+  active = false,
+  completed = false,
+}: {
+  icon: string;
+  label: string;
+  active?: boolean;
+  completed?: boolean;
+}) {
   return (
     <div className="flex flex-col items-center gap-2 z-10">
       <div
-        className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${active ? "bg-primary text-white shadow-glow ring-4 ring-primary/10" : completed ? "bg-primary/20 text-primary border border-primary/10" : "bg-[var(--surface)] border border-[var(--border-subtle)] text-[var(--text-muted)] opacity-60"}`}
+        className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
+          active
+            ? "bg-primary text-white shadow-glow ring-4 ring-primary/10"
+            : completed
+              ? "bg-primary/20 text-primary border border-primary/10"
+              : "bg-[var(--surface)] border border-[var(--border-subtle)] text-[var(--text-muted)] opacity-60"
+        }`}
       >
         <span className="material-symbols-outlined text-xl">{icon}</span>
       </div>
       <span
-        className={`text-[10px] font-bold hidden sm:block ${active ? "text-primary" : "text-[var(--text-muted)]"}`}
+        className={`text-[10px] font-bold hidden sm:block ${
+          active ? "text-primary" : "text-[var(--text-muted)]"
+        }`}
       >
         {label}
       </span>
@@ -669,18 +739,30 @@ function StepItem({ icon, label, active = false, completed = false }: any) {
   );
 }
 
-function StepLine({ active = false }: any) {
+function StepLine() {
   return (
     <div className="flex-1 h-[1px] bg-[var(--border-subtle)] mx-2 translate-y-[-14px]" />
   );
 }
 
-function CheckItem({ label }: any) {
+function CheckItem({ label, done }: { label: string; done?: boolean }) {
   return (
-    <div className="flex items-center gap-3 p-3.5 bg-[var(--input-bg)] rounded-2xl border border-emerald-500/10">
-      <div className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-500">
+    <div
+      className={`flex items-center gap-3 p-3.5 rounded-2xl border ${
+        done
+          ? "border-emerald-500/20 bg-[var(--input-bg)]"
+          : "border-[var(--border-subtle)] bg-[var(--input-bg)] opacity-60"
+      }`}
+    >
+      <div
+        className={`w-5 h-5 rounded-full flex items-center justify-center ${
+          done
+            ? "bg-emerald-500/20 text-emerald-500"
+            : "bg-slate-500/20 text-slate-500"
+        }`}
+      >
         <span className="material-symbols-outlined text-[14px] font-bold">
-          check
+          {done ? "check" : "radio_button_unchecked"}
         </span>
       </div>
       <span className="text-[12px] font-semibold text-[var(--text-main)]">
@@ -690,19 +772,19 @@ function CheckItem({ label }: any) {
   );
 }
 
-function SidebarPreviewStat({ title, items }: any) {
+function SidebarStat({ title, items }: { title: string; items: string[] }) {
   return (
     <div>
       <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-4">
         {title}
       </h4>
       <div className="flex flex-wrap gap-2.5">
-        {items.map((i: any) => (
+        {items.map((item) => (
           <span
-            key={i}
-            className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-[11px] font-semibold text-slate-300 transition-colors hover:border-primary/40"
+            key={item}
+            className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-[11px] font-semibold text-slate-300 hover:border-primary/40 transition-colors"
           >
-            {i}
+            {item}
           </span>
         ))}
       </div>
@@ -710,7 +792,7 @@ function SidebarPreviewStat({ title, items }: any) {
   );
 }
 
-function BenefitBadgePreview({ icon, label }: any) {
+function BenefitBadge({ icon, label }: { icon: string; label: string }) {
   return (
     <div className="flex items-center gap-3 text-xs font-medium text-slate-300">
       <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
