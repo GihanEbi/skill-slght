@@ -201,6 +201,7 @@ export interface AddCandidateFormData {
     currentSalary?: number;
     currentSalaryCurrency?: string;
     availabilityStatus: string;
+    earliestStartDate?: string;
     status: CandidateStatus | string;
   };
   step3: {
