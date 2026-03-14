@@ -216,7 +216,7 @@ export default function ReviewStep() {
                 )
               }
             />
-            {/* <ReviewCard
+            <ReviewCard
               title="Evidence Pack"
               icon="verified"
               items={[
@@ -228,7 +228,9 @@ export default function ReviewStep() {
                 },
                 {
                   label: "ID Verification",
-                  value: (formData.step6 as any).idProof ? "Supplied" : "Pending",
+                  value: (formData.step6 as any).idProof
+                    ? "Supplied"
+                    : "Pending",
                 },
                 { label: "GDPR Clause", value: "Signed & Timstamped" },
               ]}
@@ -239,7 +241,7 @@ export default function ReviewStep() {
                   ),
                 )
               }
-            /> */}
+            />
           </div>
 
           <section className="glass-panel rounded-4xl p-10 border-(--border-subtle) space-y-8 bg-(--surface) shadow-sm">
