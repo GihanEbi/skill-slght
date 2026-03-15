@@ -616,7 +616,7 @@ function JobCard({ job, onClose, isSelected, onSelect }: any) {
             className="active-tab-gradient text-white font-bold px-5 py-2.5 rounded-xl text-xs shadow-glow hover:translate-y-[-1px] transition-all"
             onClick={() =>
               router.push(
-                `/users/system/jobs/active_jobs/candidate_list?jobCat=${job.cat}`,
+                `/users/system/jobs/active_jobs/candidate_list?jobCat=${job.cat}&jobId=${job.id}`,
               )
             }
           >

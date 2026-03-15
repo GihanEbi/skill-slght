@@ -12,14 +12,15 @@ import {
 } from "@/services/candidatePipelineService";
 import { Candidate } from "@/types/candidate_types";
 
+// All cards appear at once — no stagger delay
 const containerVariants = {
   hidden: { opacity: 0 },
-  visible: { opacity: 1, transition: { staggerChildren: 0.08 } },
+  visible: { opacity: 1, transition: { duration: 0.2 } },
 };
 
 const itemVariants = {
-  hidden: { y: 15, opacity: 0 },
-  visible: { y: 0, opacity: 1, transition: { duration: 0.4 } },
+  hidden: { opacity: 0 },
+  visible: { opacity: 1 },
 };
 
 function JobPipelineDetailPage() {
@@ -566,7 +567,7 @@ function JobPipelineDetailPage() {
           ) : (
             <motion.div
               variants={containerVariants}
-              initial="hidden"
+              // initial="hidden"
               animate="visible"
               className="grid grid-cols-1 md:grid-cols-2 gap-6"
             >
