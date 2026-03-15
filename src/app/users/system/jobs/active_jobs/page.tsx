@@ -3,7 +3,12 @@ import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { fetchActiveJobs, deleteActiveJobs } from "@/services/jobService";
+import {
+  fetchActiveJobs,
+  deleteActiveJobs,
+  getActiveJobs,
+  saveDraft,
+} from "@/services/jobService";
 import { departments, jobStatuses } from "@/constants/job_constants";
 
 const containerVariants = {
@@ -57,10 +62,7 @@ export default function ActiveJobsPage() {
 
             // Priority for category: protocol -> category -> default
             let category = "external";
-            if (
-              j.publishSettings?.protocol === "Internal Only" ||
-              j.category === "Internal"
-            ) {
+            if (j.is_internal === true) {
               category = "internal";
             }
 
@@ -174,6 +176,49 @@ export default function ActiveJobsPage() {
     setCloseReason("");
     setOtherReason("");
     setSelectedIds([]);
+  };
+
+  // Find raw job from localStorage by title, save as edit draft, navigate
+  const handleEditJob = (jobTitle: string) => {
+    const allRaw = getActiveJobs();
+    const raw = allRaw.find((j) => j.title === jobTitle);
+    if (!raw) return;
+    saveDraft({
+      editingJobTitle: raw.title,
+      title: raw.title ?? "",
+      department_id: raw.department_id ?? null,
+      department_name: raw.department_name ?? "",
+      location: raw.location ?? null,
+      work_arrangement: raw.work_arrangement,
+      employment_type: raw.employment_type,
+      description: raw.description ?? "",
+      skill_ids: raw.skill_ids ?? [],
+      skill_names: raw.skill_names ?? [],
+      template_id: raw.template_id ?? null,
+      benefit_ids: raw.benefit_ids ?? [],
+      benefit_names: raw.benefit_names ?? [],
+      custom_perks: raw.custom_perks ?? [],
+      work_life_flexible_hours: raw.work_life_flexible_hours ?? false,
+      work_life_remote_first: raw.work_life_remote_first ?? false,
+      work_life_mental_health_days: raw.work_life_mental_health_days ?? false,
+      currency: raw.currency ?? "USD",
+      salary_min: raw.salary_min ?? null,
+      salary_max: raw.salary_max ?? null,
+      performance_bonus: raw.performance_bonus ?? false,
+      signing_bonus: raw.signing_bonus ?? false,
+      stock_options: raw.stock_options ?? false,
+      financial_add_ons: raw.financial_add_ons ?? [],
+      is_internal: raw.is_internal ?? true,
+      external_publisher_ids: raw.external_publisher_ids ?? [],
+      external_publisher_names: raw.external_publisher_names ?? [],
+      hiring_manager_ids: raw.hiring_manager_ids ?? [],
+      hiring_manager_names: raw.hiring_manager_names ?? [],
+      save_as_template: raw.save_as_template ?? false,
+      status: raw.status,
+      created_at: raw.created_at ?? new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+    router.push("/users/system/jobs/create/details");
   };
 
   return (
@@ -290,7 +335,7 @@ export default function ActiveJobsPage() {
                 </span>
               </div>
               <div className="flex items-center gap-2">
-                <button
+                {/* <button
                   onClick={handleBulkExport}
                   className="px-4 py-2 text-xs font-bold text-[var(--text-main)] hover:bg-[var(--surface)] rounded-xl border border-[var(--border-subtle)] flex items-center gap-2 transition-all"
                 >
@@ -298,7 +343,7 @@ export default function ActiveJobsPage() {
                     download
                   </span>{" "}
                   Export
-                </button>
+                </button> */}
                 <button
                   onClick={() => setJobToClose("bulk")}
                   className="px-5 py-2 text-xs font-bold bg-red-500 text-white rounded-xl shadow-lg hover:scale-105 transition-all flex items-center gap-2"
@@ -329,7 +374,7 @@ export default function ActiveJobsPage() {
               <span>Active Jobs</span>
             </nav>
             <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-[var(--text-main)]">
-              Protocol Jobs
+              All Active Jobs
               <span className="text-[var(--text-muted)] ml-3 text-lg font-normal opacity-50">
                 {filteredJobs.length} positions
               </span>
@@ -431,6 +476,7 @@ export default function ActiveJobsPage() {
                   isSelected={selectedIds.includes(job.id)}
                   onSelect={() => toggleSelect(job.id)}
                   onClose={() => setJobToClose(job)}
+                  onEdit={() => handleEditJob(job.title)}
                 />
               ))}
             </AnimatePresence>
@@ -480,7 +526,7 @@ export default function ActiveJobsPage() {
   );
 }
 
-function JobCard({ job, onClose, isSelected, onSelect }: any) {
+function JobCard({ job, onClose, onEdit, isSelected, onSelect }: any) {
   const router = useRouter();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -620,7 +666,7 @@ function JobCard({ job, onClose, isSelected, onSelect }: any) {
               )
             }
           >
-            Access Pipeline
+            View Job Details
           </button>
           <div className="relative">
             <button
@@ -641,8 +687,15 @@ function JobCard({ job, onClose, isSelected, onSelect }: any) {
                     exit={{ opacity: 0, scale: 0.95, y: 10 }}
                     className="absolute right-0 mt-2 w-52 bg-[var(--surface)] rounded-2xl border border-[var(--glass-border)] shadow-xl overflow-hidden p-1.5 z-[200]"
                   >
-                    <MenuButton icon="edit" label="Edit Protocol" />
-                    <MenuButton icon="visibility" label="View Careers Page" />
+                    <MenuButton
+                      icon="edit"
+                      label="Edit Job"
+                      onClick={() => {
+                        setIsMenuOpen(false);
+                        onEdit();
+                      }}
+                    />
+                    {/* <MenuButton icon="visibility" label="View Careers Page" /> */}
                     <div className="h-px bg-[var(--border-subtle)] my-1.5 mx-2" />
                     <MenuButton
                       icon="cancel"

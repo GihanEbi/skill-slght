@@ -10,7 +10,7 @@ import {
   addCandidateToPipeline,
   removeCandidateFromPipeline,
 } from "@/services/candidatePipelineService";
-import { fetchActiveJobs } from "@/services/jobService";
+import { fetchActiveJobs, saveDraft } from "@/services/jobService";
 import { Candidate } from "@/types/candidate_types";
 
 // All cards appear at once — no stagger delay
@@ -43,11 +43,59 @@ function timeAgo(dateString: string) {
 }
 
 function JobPipelineDetailPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const jobId = searchParams.get("jobId");
+
   const [isReviewingMatches, setIsReviewingMatches] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [selectedCandidate, setSelectedCandidate] = useState<any>(null);
   const [showJobModal, setShowJobModal] = useState(false);
+  const [isNavigatingToEdit, setIsNavigatingToEdit] = useState(false);
   const [currentJob, setCurrentJob] = useState<any>(null);
+
+  // Saves current job as the creation draft and navigates to the edit workflow
+  const handleEditJob = useCallback(() => {
+    if (!currentJob) return;
+    saveDraft({
+      // Mark this draft as an edit of an existing job so it gets replaced on save
+      editingJobTitle: currentJob.title ?? "",
+      title: currentJob.title ?? "",
+      department_id: currentJob.department_id ?? null,
+      department_name: currentJob.department_name ?? "",
+      location: currentJob.location ?? null,
+      work_arrangement: currentJob.work_arrangement,
+      employment_type: currentJob.employment_type,
+      description: currentJob.description ?? "",
+      skill_ids: currentJob.skill_ids ?? [],
+      skill_names: currentJob.skill_names ?? [],
+      template_id: currentJob.template_id ?? null,
+      benefit_ids: currentJob.benefit_ids ?? [],
+      benefit_names: currentJob.benefit_names ?? [],
+      custom_perks: currentJob.custom_perks ?? [],
+      work_life_flexible_hours: currentJob.work_life_flexible_hours ?? false,
+      work_life_remote_first: currentJob.work_life_remote_first ?? false,
+      work_life_mental_health_days: currentJob.work_life_mental_health_days ?? false,
+      currency: currentJob.currency ?? "USD",
+      salary_min: currentJob.salary_min ?? null,
+      salary_max: currentJob.salary_max ?? null,
+      performance_bonus: currentJob.performance_bonus ?? false,
+      signing_bonus: currentJob.signing_bonus ?? false,
+      stock_options: currentJob.stock_options ?? false,
+      financial_add_ons: currentJob.financial_add_ons ?? [],
+      is_internal: currentJob.is_internal ?? true,
+      external_publisher_ids: currentJob.external_publisher_ids ?? [],
+      external_publisher_names: currentJob.external_publisher_names ?? [],
+      hiring_manager_ids: currentJob.hiring_manager_ids ?? [],
+      hiring_manager_names: currentJob.hiring_manager_names ?? [],
+      save_as_template: currentJob.save_as_template ?? false,
+      status: currentJob.status,
+      created_at: currentJob.created_at ?? new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+    setIsNavigatingToEdit(true);
+    router.push("/users/system/jobs/create/details");
+  }, [currentJob, router]);
 
   // Loader states for Email
   const [isSending, setIsSending] = useState(false);
@@ -63,9 +111,7 @@ function JobPipelineDetailPage() {
   const [aiMatches, setAiMatches] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const jobId = searchParams.get("jobId");
+
 
   useEffect(() => {
     const loadData = async () => {
@@ -484,9 +530,10 @@ function JobPipelineDetailPage() {
                 <button
                   onClick={() => {
                     setShowJobModal(false);
-                    router.push("/users/system/jobs/create/details");
+                    handleEditJob();
                   }}
-                  className="flex-[2] active-tab-gradient py-3 rounded-xl text-white font-bold text-sm shadow-glow transition-all flex items-center justify-center gap-2"
+                  disabled={!currentJob}
+                  className="flex-[2] active-tab-gradient py-3 rounded-xl text-white font-bold text-sm shadow-glow transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   <span className="material-symbols-outlined text-lg">edit_note</span>
                   Edit Job
@@ -837,13 +884,16 @@ function JobPipelineDetailPage() {
           </div>
           <div className="flex items-center gap-3">
             <button
-              onClick={() => router.push("/users/system/jobs/create/details")}
-              className="px-5 py-2.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface)] text-[var(--text-main)] font-semibold text-sm hover:border-primary/50 transition-all flex items-center gap-2 shadow-sm"
+              onClick={handleEditJob}
+              disabled={!currentJob || isNavigatingToEdit}
+              className="px-5 py-2.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface)] text-[var(--text-main)] font-semibold text-sm hover:border-primary/50 transition-all flex items-center gap-2 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <span className="material-symbols-outlined text-xl opacity-70">
-                edit_note
-              </span>
-              Edit Job
+              {isNavigatingToEdit ? (
+                <span className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+              ) : (
+                <span className="material-symbols-outlined text-xl opacity-70">edit_note</span>
+              )}
+              {isNavigatingToEdit ? "Loading..." : "Edit Job"}
             </button>
             <button
               onClick={() => setShowJobModal(true)}

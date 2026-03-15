@@ -82,6 +82,9 @@ export interface JobDraft {
   // Meta
   created_at: string;
   updated_at: string;
+
+  // Edit mode — title of the original job being edited (used to find & replace it on save)
+  editingJobTitle?: string;
 }
 
 /** Creates a blank draft with sensible defaults */
@@ -295,15 +298,28 @@ export async function deleteActiveJobs(jobsToRemove: any[]): Promise<void> {
 export function publishJob(draft: JobDraft): JobDraft {
   const jobs = getActiveJobs();
   const now = new Date().toISOString();
+  const { editingJobTitle, ...cleanDraft } = draft;
   const published: JobDraft = {
-    ...draft,
+    ...cleanDraft,
     status: JobStatus.Active,
     updated_at: now,
   };
-  localStorage.setItem(
-    LS_ACTIVE_JOBS_KEY,
-    JSON.stringify([...jobs, published]),
-  );
+
+  let updatedJobs: JobDraft[];
+  if (editingJobTitle) {
+    // Replace the existing record instead of appending
+    const idx = jobs.findIndex((j) => j.title === editingJobTitle);
+    if (idx !== -1) {
+      jobs[idx] = published;
+      updatedJobs = jobs;
+    } else {
+      updatedJobs = [...jobs, published];
+    }
+  } else {
+    updatedJobs = [...jobs, published];
+  }
+
+  localStorage.setItem(LS_ACTIVE_JOBS_KEY, JSON.stringify(updatedJobs));
   clearDraft();
   return published;
 }
@@ -311,12 +327,28 @@ export function publishJob(draft: JobDraft): JobDraft {
 export function saveJobAsDraft(draft: JobDraft): JobDraft {
   const jobs = getActiveJobs();
   const now = new Date().toISOString();
+  const { editingJobTitle, ...cleanDraft } = draft;
   const saved: JobDraft = {
-    ...draft,
+    ...cleanDraft,
     status: JobStatus.Draft,
     updated_at: now,
   };
-  localStorage.setItem(LS_ACTIVE_JOBS_KEY, JSON.stringify([...jobs, saved]));
+
+  let updatedJobs: JobDraft[];
+  if (editingJobTitle) {
+    // Replace the existing record instead of appending
+    const idx = jobs.findIndex((j) => j.title === editingJobTitle);
+    if (idx !== -1) {
+      jobs[idx] = saved;
+      updatedJobs = jobs;
+    } else {
+      updatedJobs = [...jobs, saved];
+    }
+  } else {
+    updatedJobs = [...jobs, saved];
+  }
+
+  localStorage.setItem(LS_ACTIVE_JOBS_KEY, JSON.stringify(updatedJobs));
   clearDraft();
   return saved;
 }
