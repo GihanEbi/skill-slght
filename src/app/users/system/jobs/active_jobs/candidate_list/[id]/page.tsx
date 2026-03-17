@@ -2,14 +2,93 @@
 import React, { useState, Suspense, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
 
 import { fetchCandidateDetails } from "@/services/candidatePipelineService";
-import { Candidate } from "@/types/candidate_types";
+import { Candidate, CandidatePipelineStatus } from "@/types/candidate_types";
+
+const PIPELINE_FLOW = [
+  { status: CandidatePipelineStatus.Reviewing, label: "Reviewing" },
+  { status: CandidatePipelineStatus.AiInterviewing, label: "AI Interviewing" },
+  {
+    status: CandidatePipelineStatus.AiInterviewCompleted,
+    label: "AI Completed",
+  },
+  {
+    status: CandidatePipelineStatus.TechnicalInterview,
+    label: "Tech Interview",
+  },
+  {
+    status: CandidatePipelineStatus.TechnicalInterviewCompleted,
+    label: "Tech Completed",
+  },
+  {
+    status: CandidatePipelineStatus.HiringManagerInterview,
+    label: "HM Interview",
+  },
+  {
+    status: CandidatePipelineStatus.HiringManagerInterviewCompleted,
+    label: "HM Completed",
+  },
+  { status: CandidatePipelineStatus.Offered, label: "Offered" },
+  // { status: CandidatePipelineStatus.Rejected, label: "Rejected" },
+];
+
+const PANEL_MEMBERS = [
+  "Alice Johnson - Tech Lead",
+  "Bob Smith - Senior Engineer",
+  "Charlie Brown - Engineering Manager",
+  "Diana Prince - QA Lead",
+];
+
+const MOCK_TIME_SLOTS = [
+  "Tomorrow, 10:00 AM - 11:00 AM",
+  "Tomorrow, 02:00 PM - 03:00 PM",
+  "Wednesday, 11:30 AM - 12:30 PM",
+  "Thursday, 04:00 PM - 05:00 PM",
+];
+
+const getNextPipelineAction = (currentStatus: string) => {
+  switch (currentStatus) {
+    case CandidatePipelineStatus.Reviewing:
+      return {
+        label: "Move to AI Interview",
+        nextStatus: CandidatePipelineStatus.AiInterviewing,
+        nextStage: "AI Interviewing",
+      };
+    case CandidatePipelineStatus.AiInterviewCompleted:
+      return {
+        label: "Move to Tech Interview",
+        nextStatus: CandidatePipelineStatus.TechnicalInterview,
+        nextStage: "Technical Interview",
+      };
+    case CandidatePipelineStatus.TechnicalInterviewCompleted:
+      return {
+        label: "Move to HM Interview",
+        nextStatus: CandidatePipelineStatus.HiringManagerInterview,
+        nextStage: "Hiring Manager Interview",
+      };
+    case CandidatePipelineStatus.HiringManagerInterview:
+      return {
+        label: "Complete HM Interview",
+        nextStatus: CandidatePipelineStatus.HiringManagerInterviewCompleted,
+        nextStage: "Hiring Manager Interview Completed",
+      };
+    case CandidatePipelineStatus.HiringManagerInterviewCompleted:
+      return {
+        label: "Make Offer",
+        nextStatus: CandidatePipelineStatus.Offered,
+        nextStage: "Offered",
+      };
+    default:
+      return null;
+  }
+};
 
 function CandidateDetailContent() {
   const params = useParams();
+  const router = useRouter();
   const candidateId = params.id as string;
 
   const [candidate, setCandidate] = useState<Candidate | null>(null);
@@ -24,9 +103,25 @@ function CandidateDetailContent() {
   const [isSent, setIsSent] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
+  // States for Rejecting
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
+  const [isRejecting, setIsRejecting] = useState(false);
+
   // Loader states for "Advance Candidate"
   const [isAdvancing, setIsAdvancing] = useState(false);
   const [isAdvanced, setIsAdvanced] = useState(false);
+
+  // States for Tech Interview Scheduling
+  const [showTechInterviewModal, setShowTechInterviewModal] = useState(false);
+  const [selectedPanelMembers, setSelectedPanelMembers] = useState<string[]>(
+    [],
+  );
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [showTimeSlots, setShowTimeSlots] = useState(false);
+  const [isLoadingTimeSlots, setIsLoadingTimeSlots] = useState(false);
+  const [selectedTimeSlots, setSelectedTimeSlots] = useState<string[]>([]);
+  const [pendingAction, setPendingAction] = useState<any>(null);
 
   const tabs = ["Experience", "Resume", "Skills"];
 
@@ -52,16 +147,53 @@ function CandidateDetailContent() {
     }, 1200);
   };
 
-  const handleAdvanceCandidate = async () => {
+  const handleCheckTimeSlots = async () => {
+    setIsLoadingTimeSlots(true);
+    setShowTimeSlots(false);
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    setShowTimeSlots(true);
+    setIsLoadingTimeSlots(false);
+  };
+
+  const handleConfirmTechInterview = () => {
+    setShowTechInterviewModal(false);
+    if (pendingAction) {
+      handleAdvanceCandidate(pendingAction);
+    }
+  };
+
+  const handleAdvanceCandidate = async (action: any) => {
     setIsAdvancing(true);
     // Simulate API call to move candidate stage
     await new Promise((resolve) => setTimeout(resolve, 2000));
+
+    if (candidate) {
+      setCandidate({
+        ...candidate,
+        pipeline_status: action.nextStatus,
+        pipeline_stage: action.nextStage,
+      });
+    }
+
     setIsAdvancing(false);
     setIsAdvanced(true);
     // Short delay to show success before resetting or navigating
     setTimeout(() => {
       setIsAdvanced(false);
     }, 2000);
+  };
+
+  const handleRejectCandidate = async () => {
+    setIsRejecting(true);
+    // Simulate API call to reject candidate
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
+    setIsRejecting(false);
+    setShowRejectModal(false);
+
+    // Alert the user and route back to the candidate list
+    alert("Candidate has been rejected");
+    router.push("/users/system/jobs/active_jobs/candidate_list");
   };
 
   const renderTabContent = () => {
@@ -199,7 +331,7 @@ function CandidateDetailContent() {
                 </h3>
                 <p className="text-[var(--text-muted)] text-sm font-medium mt-1">
                   {isAdvanced
-                    ? "Marcus Thorne moved to Technical Interview"
+                    ? `${candidate?.first_name} moved to ${candidate?.pipeline_stage}`
                     : "Synchronizing state across protocol nodes..."}
                 </p>
               </div>
@@ -508,6 +640,300 @@ function CandidateDetailContent() {
         )}
       </AnimatePresence>
 
+      {/* --- TECH INTERVIEW SCHEDULING MODAL --- */}
+      <AnimatePresence>
+        {showTechInterviewModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowTechInterviewModal(false)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              className="relative w-full max-w-xl glass-panel rounded-[2rem] p-8 shadow-2xl border-[var(--border-subtle)]"
+              style={{ zIndex: 110 }}
+            >
+              <div className="flex items-center gap-4 mb-6">
+                <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+                  <span className="material-symbols-outlined text-2xl">
+                    groups
+                  </span>
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-[var(--text-main)] tracking-tight">
+                    Schedule Technical Interview
+                  </h3>
+                  <p className="text-sm text-[var(--text-muted)] font-medium">
+                    {candidate?.first_name} {candidate?.last_name}
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <div className="space-y-2 relative z-50">
+                  <label className="text-xs font-bold text-[var(--text-muted)] px-1">
+                    Select Panel Members
+                  </label>
+                  <div className="relative">
+                    <div
+                      className="premium-input rounded-xl px-4 py-3 text-sm font-semibold w-full cursor-pointer flex justify-between items-center"
+                      onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                    >
+                      <span className="truncate pr-4 text-[var(--text-main)]">
+                        {selectedPanelMembers.length > 0
+                          ? `${selectedPanelMembers.length} member(s) selected`
+                          : "Select Panel Members..."}
+                      </span>
+                      <span className="material-symbols-outlined text-[var(--text-muted)] shrink-0 ml-auto">
+                        {isDropdownOpen ? "expand_less" : "expand_more"}
+                      </span>
+                    </div>
+
+                    <AnimatePresence>
+                      {isDropdownOpen && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -10 }}
+                          className="absolute top-full left-0 right-0 mt-2 bg-[var(--surface)] border border-[var(--border-subtle)] rounded-xl shadow-xl py-2 max-h-48 overflow-y-auto custom-scrollbar"
+                        >
+                          {PANEL_MEMBERS.map((member) => (
+                            <div
+                              key={member}
+                              className="px-4 py-3 hover:bg-[var(--input-bg)] cursor-pointer flex items-center gap-3 transition-colors"
+                              onClick={() => {
+                                if (selectedPanelMembers.includes(member)) {
+                                  setSelectedPanelMembers((prev) =>
+                                    prev.filter((m) => m !== member),
+                                  );
+                                } else {
+                                  setSelectedPanelMembers((prev) => [
+                                    ...prev,
+                                    member,
+                                  ]);
+                                }
+                              }}
+                            >
+                              <div
+                                className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-all ${
+                                  selectedPanelMembers.includes(member)
+                                    ? "bg-primary border-primary"
+                                    : "border-[var(--text-muted)]"
+                                }`}
+                              >
+                                {selectedPanelMembers.includes(member) && (
+                                  <span className="material-symbols-outlined text-[10px] text-[var(--background)] font-bold">
+                                    check
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-sm text-[var(--text-main)] truncate">
+                                {member}
+                              </span>
+                            </div>
+                          ))}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+
+                  {selectedPanelMembers.length > 0 && (
+                    <div className="flex flex-wrap gap-2 pt-2">
+                      {selectedPanelMembers.map((member) => (
+                        <div
+                          key={member}
+                          className="px-3 py-1.5 bg-[var(--surface)] border border-[var(--border-subtle)] rounded-xl flex items-center gap-2"
+                        >
+                          <span className="text-xs font-bold text-[var(--text-main)]">
+                            {member}
+                          </span>
+                          <button
+                            onClick={() =>
+                              setSelectedPanelMembers((prev) =>
+                                prev.filter((m) => m !== member),
+                              )
+                            }
+                            className="text-[var(--text-muted)] hover:text-red-500 transition-colors flex items-center justify-center p-0.5 rounded-full hover:bg-red-500/10"
+                          >
+                            <span className="material-symbols-outlined text-[14px]">
+                              close
+                            </span>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex justify-end relative z-40">
+                  <button
+                    onClick={handleCheckTimeSlots}
+                    disabled={
+                      selectedPanelMembers.length === 0 || isLoadingTimeSlots
+                    }
+                    className="px-6 py-2.5 bg-[var(--surface)] border border-[var(--border-subtle)] text-[var(--text-main)] font-bold rounded-xl text-xs hover:border-primary/40 transition-all shadow-sm flex items-center gap-2 disabled:opacity-50"
+                  >
+                    {isLoadingTimeSlots ? (
+                      <span className="w-4 h-4 border-2 border-[var(--text-muted)] border-t-[var(--text-main)] rounded-full animate-spin"></span>
+                    ) : (
+                      <span className="material-symbols-outlined text-base">
+                        search
+                      </span>
+                    )}
+                    Check Available Time Slots
+                  </button>
+                </div>
+
+                {showTimeSlots && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    className="space-y-4 relative z-0"
+                  >
+                    <div className="h-px w-full bg-[var(--border-subtle)]" />
+                    <h4 className="text-sm font-bold text-[var(--text-main)] px-1">
+                      Available Time Slots
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
+                      {MOCK_TIME_SLOTS.map((slot) => (
+                        <div
+                          key={slot}
+                          onClick={() => {
+                            if (selectedTimeSlots.includes(slot)) {
+                              setSelectedTimeSlots((prev) =>
+                                prev.filter((s) => s !== slot),
+                              );
+                            } else {
+                              setSelectedTimeSlots((prev) => [...prev, slot]);
+                            }
+                          }}
+                          className={`p-3 rounded-xl border cursor-pointer transition-all ${
+                            selectedTimeSlots.includes(slot)
+                              ? "bg-primary/20 border-primary shadow-glow"
+                              : "bg-[var(--input-bg)] border-[var(--border-subtle)] hover:border-primary/40"
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className="material-symbols-outlined text-primary text-lg shrink-0">
+                              schedule
+                            </span>
+                            <span className="text-xs font-bold text-[var(--text-main)]">
+                              {slot}
+                            </span>
+                            {selectedTimeSlots.includes(slot) && (
+                              <span className="material-symbols-outlined text-primary text-base ml-auto">
+                                check_circle
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </div>
+
+              <div className="flex gap-3 mt-8 relative z-0">
+                <button
+                  onClick={() => setShowTechInterviewModal(false)}
+                  className="flex-1 py-3 text-sm font-bold text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmTechInterview}
+                  disabled={selectedTimeSlots.length === 0}
+                  className="flex-[2] py-3 rounded-xl bg-primary text-black font-bold text-sm shadow-glow disabled:opacity-50 transition-all hover:bg-primary/90"
+                >
+                  Save and Advance
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* --- REJECT CANDIDATE MODAL --- */}
+      <AnimatePresence>
+        {showRejectModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => !isRejecting && setShowRejectModal(false)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              className="relative w-full max-w-md glass-panel rounded-[2rem] p-8 shadow-2xl border-[var(--border-subtle)] overflow-hidden"
+            >
+              <AnimatePresence mode="wait">
+                {isRejecting && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="absolute inset-0 z-50 bg-[var(--surface)]/90 backdrop-blur-md flex flex-col items-center justify-center text-center p-6"
+                  >
+                    <div className="w-16 h-16 border-4 border-red-500/20 border-t-red-500 rounded-full animate-spin mb-4" />
+                    <h3 className="text-[var(--text-main)] font-bold text-lg">
+                      Rejecting Candidate...
+                    </h3>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+              <div className="flex items-center gap-4 mb-6">
+                <div className="w-12 h-12 rounded-xl bg-red-500/10 flex items-center justify-center text-red-500">
+                  <span className="material-symbols-outlined text-2xl">
+                    block
+                  </span>
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-[var(--text-main)] tracking-tight">
+                    Reject Candidate
+                  </h3>
+                  <p className="text-sm text-[var(--text-muted)] font-medium">
+                    {candidate?.first_name} {candidate?.last_name}
+                  </p>
+                </div>
+              </div>
+              <p className="text-sm text-[var(--text-muted)] mb-4">
+                Please provide a reason for rejecting this candidate.
+              </p>
+              <textarea
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                placeholder="Reason for rejection (e.g., Not enough experience)..."
+                className="premium-input rounded-xl p-4 text-sm font-medium resize-none h-32 w-full mb-6"
+              />
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowRejectModal(false)}
+                  disabled={isRejecting}
+                  className="flex-1 py-3 text-sm font-bold text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleRejectCandidate}
+                  disabled={!rejectReason.trim() || isRejecting}
+                  className="flex-1 py-3 rounded-xl bg-red-500 text-white font-bold text-sm shadow-glow disabled:opacity-50 transition-all hover:bg-red-600"
+                >
+                  Confirm Rejection
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       <main className="max-w-7xl mx-auto px-4 md:px-6 py-8">
         <nav className="flex items-center gap-2 text-xs font-semibold text-[var(--text-muted)] mb-8">
           <Link
@@ -532,13 +958,71 @@ function CandidateDetailContent() {
             href="/users/system/jobs/active_jobs/candidate_list"
             className="hover:text-primary transition-colors"
           >
-            Candidate List
+            Job Details
           </Link>
           <span className="material-symbols-outlined text-sm opacity-40">
             chevron_right
           </span>
-          <span className="text-primary">Marcus Thorne</span>
+          <span className="text-primary">
+            {candidate?.first_name} {candidate?.last_name}
+          </span>
         </nav>
+
+        {/* Pipeline Workflow Stepper */}
+        <div className="mb-8 w-full overflow-x-auto no-scrollbar pb-2">
+          <div className="flex items-center min-w-max gap-2 md:gap-4">
+            {PIPELINE_FLOW.map((step, index) => {
+              const currentStatusIndex = PIPELINE_FLOW.findIndex(
+                (s) => s.status === candidate?.pipeline_status,
+              );
+              const isCompleted =
+                currentStatusIndex !== -1 &&
+                index < currentStatusIndex &&
+                candidate?.pipeline_status !== CandidatePipelineStatus.Rejected;
+              const isCurrent = index === currentStatusIndex;
+              const isRejected =
+                candidate?.pipeline_status ===
+                  CandidatePipelineStatus.Rejected && isCurrent;
+
+              let stepStyle =
+                "text-slate-500 bg-[var(--surface)] border-[var(--border-subtle)] opacity-50";
+              let icon = "radio_button_unchecked";
+
+              if (isCompleted) {
+                stepStyle =
+                  "text-emerald-500 bg-emerald-500/10 border-emerald-500/20";
+                icon = "check_circle";
+              } else if (isCurrent) {
+                if (isRejected) {
+                  stepStyle = "text-red-500 bg-red-500/10 border-red-500/20";
+                  icon = "cancel";
+                } else {
+                  stepStyle =
+                    "text-primary bg-primary/10 border-primary/20 shadow-glow";
+                  icon = "radio_button_checked";
+                }
+              }
+
+              return (
+                <div key={step.status} className="flex items-center">
+                  <div
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all ${stepStyle}`}
+                  >
+                    <span className="material-symbols-outlined text-[14px]">
+                      {icon}
+                    </span>
+                    {step.label}
+                  </div>
+                  {index < PIPELINE_FLOW.length - 1 && (
+                    <div
+                      className={`w-8 h-px mx-2 ${isCompleted ? "bg-emerald-500/50" : "bg-[var(--border-subtle)]"}`}
+                    ></div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
 
         <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 mb-12">
           <div className="flex items-center gap-6">
@@ -608,25 +1092,67 @@ function CandidateDetailContent() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <button
-              onClick={() => setShowAiInterview(true)}
-              className="px-6 py-3 rounded-xl border border-primary/30 text-primary bg-primary/5 font-bold text-sm hover:bg-primary/10 transition-all flex items-center gap-2 active:scale-95"
-            >
-              <span className="material-symbols-outlined text-lg">
-                smart_toy
-              </span>{" "}
-              Review AI Interview
-            </button>
-            <button
-              onClick={handleAdvanceCandidate}
-              disabled={isAdvancing}
-              className="px-6 py-3 bg-primary text-[var(--background)] font-bold rounded-xl text-sm hover:shadow-glow-strong transition-all flex items-center gap-2 active:scale-95 disabled:opacity-50"
-            >
-              Move to Technical Interview{" "}
-              <span className="material-symbols-outlined text-lg">
-                arrow_forward
-              </span>
-            </button>
+            {candidate?.pipeline_status ===
+              CandidatePipelineStatus.AiInterviewCompleted && (
+              <button
+                onClick={() => setShowAiInterview(true)}
+                className="px-6 py-3 rounded-xl border border-primary/30 text-primary bg-primary/5 font-bold text-sm hover:bg-primary/10 transition-all flex items-center gap-2 active:scale-95"
+              >
+                <span className="material-symbols-outlined text-lg">
+                  smart_toy
+                </span>{" "}
+                Review AI Interview
+              </button>
+            )}
+
+            {(() => {
+              const action = candidate
+                ? getNextPipelineAction(candidate.pipeline_status)
+                : null;
+              if (!action) return null;
+
+              return (
+                <button
+                  onClick={() => {
+                    if (
+                      action.nextStatus ===
+                      CandidatePipelineStatus.TechnicalInterview
+                    ) {
+                      setPendingAction(action);
+                      setShowTechInterviewModal(true);
+                      setSelectedPanelMembers([]);
+                      setShowTimeSlots(false);
+                      setSelectedTimeSlots([]);
+                      setIsDropdownOpen(false);
+                    } else {
+                      handleAdvanceCandidate(action);
+                    }
+                  }}
+                  disabled={isAdvancing}
+                  className="px-6 py-3 bg-primary text-[var(--background)] font-bold rounded-xl text-sm hover:shadow-glow-strong transition-all flex items-center gap-2 active:scale-95 disabled:opacity-50"
+                >
+                  {isAdvancing ? "Updating..." : action.label}
+                  <span className="material-symbols-outlined text-lg">
+                    {action.nextStatus === CandidatePipelineStatus.Rejected
+                      ? "cancel"
+                      : "arrow_forward"}
+                  </span>
+                </button>
+              );
+            })()}
+
+            {candidate?.pipeline_status !==
+              CandidatePipelineStatus.Rejected && (
+              <button
+                onClick={() => setShowRejectModal(true)}
+                className="px-6 py-3 rounded-xl border border-red-500/30 text-red-500 bg-red-500/5 font-bold text-sm hover:bg-red-500/10 transition-all flex items-center gap-2 active:scale-95"
+              >
+                <span className="material-symbols-outlined text-lg">
+                  cancel
+                </span>{" "}
+                Reject Candidate
+              </button>
+            )}
           </div>
         </div>
 
@@ -692,7 +1218,7 @@ function CandidateDetailContent() {
                 />
               </div>
             </div>
-            <div className="glass-panel rounded-[2rem] p-8 border-t border-primary/20 relative overflow-hidden bg-gradient-to-b from-primary/5 to-transparent shadow-glow">
+            {/* <div className="glass-panel rounded-[2rem] p-8 border-t border-primary/20 relative overflow-hidden bg-gradient-to-b from-primary/5 to-transparent shadow-glow">
               <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest mb-8">
                 Assessment Scores
               </h3>
@@ -708,7 +1234,7 @@ function CandidateDetailContent() {
               <button className="w-full mt-8 py-3 rounded-xl border border-[var(--border-subtle)] text-xs font-bold text-[var(--text-main)] hover:bg-primary/5 hover:border-primary/30 transition-all">
                 View Full Report
               </button>
-            </div>
+            </div> */}
           </div>
         </div>
       </main>

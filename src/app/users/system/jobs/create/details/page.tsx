@@ -13,7 +13,7 @@ import {
   saveDraft,
   createBlankDraft,
   fetchDepartments,
-  fetchJobTemplates,
+  fetchRichJobTemplates,
   fetchAiSkillSuggestions,
   fetchWorkArrangements,
   fetchEmploymentTypes,
@@ -26,7 +26,6 @@ import {
   WorkArrangement,
   EmploymentType,
   Department,
-  JobTemplate,
 } from "@/types/job_types";
 import { UUID } from "@/types/common_types";
 
@@ -46,7 +45,7 @@ export default function CreateJobDetailsPage() {
 
   // ── Fetched reference data ──────────────────────────────────────────────
   const [departments, setDepartments] = useState<Department[]>([]);
-  const [templates, setTemplates] = useState<JobTemplate[]>([]);
+  const [templates, setTemplates] = useState<JobDraft[]>([]);
   const [workArrangements, setWorkArrangements] = useState<WorkArrangement[]>(
     [],
   );
@@ -97,7 +96,7 @@ export default function CreateJobDetailsPage() {
         const [depts, tmpls, arrangements, empTypes, skills] =
           await Promise.all([
             fetchDepartments(),
-            fetchJobTemplates(),
+            fetchRichJobTemplates(),
             fetchWorkArrangements(),
             fetchEmploymentTypes(),
             fetchAiSkillSuggestions(),
@@ -192,9 +191,18 @@ export default function CreateJobDetailsPage() {
   };
 
   // ── Template select ─────────────────────────────────────────────────────
-  const selectTemplate = (tmpl: JobTemplate) => {
-    setTemplateId(tmpl.id);
-    setTitle(tmpl.name);
+  const selectTemplate = (tmpl: JobDraft) => {
+    setTitle(tmpl.title);
+    setDepartmentId(tmpl.department_id);
+    setDepartmentName(tmpl.department_name);
+    if (tmpl.location !== null) setLocation(tmpl.location);
+    setWorkArrangement(tmpl.work_arrangement);
+    setEmploymentType(tmpl.employment_type);
+    setDescription(tmpl.description);
+    setSkillNames(tmpl.skill_names);
+    setTemplateId(tmpl.template_id);
+    // Also save it to draft so that benefits/compensation pages can use it, but since we are currently on step 1, those fields are preserved when we hit 'Continue' or edit
+    saveDraft(tmpl);
     setShowModal(false);
   };
 
@@ -369,7 +377,7 @@ export default function CreateJobDetailsPage() {
                 ) : (
                   templates.map((tmpl) => (
                     <button
-                      key={tmpl.id}
+                      key={tmpl.title}
                       onClick={() => selectTemplate(tmpl)}
                       className="group flex items-center gap-4 p-4 rounded-2xl bg-[var(--input-bg)] border border-[var(--border-subtle)] hover:border-primary/50 hover:bg-[var(--surface)] transition-all text-left shadow-sm"
                     >
@@ -380,10 +388,10 @@ export default function CreateJobDetailsPage() {
                       </div>
                       <div>
                         <p className="text-sm font-bold text-[var(--text-main)] mb-0.5">
-                          {tmpl.name}
+                          {tmpl.title}
                         </p>
                         <p className="text-[11px] font-semibold text-[var(--text-muted)] opacity-70">
-                          {tmpl.is_active ? "Active Template" : "Inactive"}
+                          {tmpl.department_name}
                         </p>
                       </div>
                     </button>

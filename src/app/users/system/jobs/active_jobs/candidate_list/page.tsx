@@ -11,6 +11,7 @@ import {
   removeCandidateFromPipeline,
 } from "@/services/candidatePipelineService";
 import { fetchActiveJobs, saveDraft } from "@/services/jobService";
+import { getAllCandidates } from "@/services/candidateService";
 import { Candidate } from "@/types/candidate_types";
 
 // All cards appear at once — no stagger delay
@@ -75,7 +76,8 @@ function JobPipelineDetailPage() {
       custom_perks: currentJob.custom_perks ?? [],
       work_life_flexible_hours: currentJob.work_life_flexible_hours ?? false,
       work_life_remote_first: currentJob.work_life_remote_first ?? false,
-      work_life_mental_health_days: currentJob.work_life_mental_health_days ?? false,
+      work_life_mental_health_days:
+        currentJob.work_life_mental_health_days ?? false,
       currency: currentJob.currency ?? "USD",
       salary_min: currentJob.salary_min ?? null,
       salary_max: currentJob.salary_max ?? null,
@@ -111,7 +113,32 @@ function JobPipelineDetailPage() {
   const [aiMatches, setAiMatches] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Add Candidate Modal state
+  const [showAddCandidateModal, setShowAddCandidateModal] = useState(false);
+  const [allCandidatesList, setAllCandidatesList] = useState<any[]>([]);
+  const [candidateSearchQuery, setCandidateSearchQuery] = useState("");
+  const [candidateJobTitleFilter, setCandidateJobTitleFilter] = useState("");
+  const [appliedSearchQuery, setAppliedSearchQuery] = useState("");
 
+  const handleAddCandidateFromList = useCallback((c: any) => {
+    const newCand = {
+      id: c.id,
+      first_name: c.name.split(" ")[0] || "",
+      last_name: c.name.split(" ").slice(1).join(" ") || "",
+      email: c.email,
+      current_role: c.jobTitle || "Unknown Role",
+      current_company: "Unknown Company",
+      avatar_id: c.avatar || "avatar-1.jpg",
+      status: "Active",
+      skills: c.skills || [],
+      isUnicorn: false,
+      pipeline_status: "Active",
+      pipeline_stage: "Reviewing",
+      updated: "Just now",
+    };
+    setCandidates((prev: any) => [newCand, ...prev]);
+    setShowAddCandidateModal(false);
+  }, []);
 
   useEffect(() => {
     const loadData = async () => {
@@ -228,7 +255,9 @@ function JobPipelineDetailPage() {
               <div className="flex items-start justify-between p-8 pb-6 border-b border-[var(--border-subtle)]">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary border border-primary/20">
-                    <span className="material-symbols-outlined text-2xl">work</span>
+                    <span className="material-symbols-outlined text-2xl">
+                      work
+                    </span>
                   </div>
                   <div>
                     <h3 className="text-xl font-bold text-[var(--text-main)] tracking-tight">
@@ -253,7 +282,9 @@ function JobPipelineDetailPage() {
                   onClick={() => setShowJobModal(false)}
                   className="p-2 rounded-xl hover:bg-[var(--surface)] text-[var(--text-muted)] hover:text-[var(--text-main)] transition-all"
                 >
-                  <span className="material-symbols-outlined text-xl">close</span>
+                  <span className="material-symbols-outlined text-xl">
+                    close
+                  </span>
                 </button>
               </div>
 
@@ -353,7 +384,9 @@ function JobPipelineDetailPage() {
                         `}</style>
                         <div
                           className="job-desc-html bg-[var(--input-bg)] rounded-2xl p-5 border border-[var(--border-subtle)]"
-                          dangerouslySetInnerHTML={{ __html: currentJob.description }}
+                          dangerouslySetInnerHTML={{
+                            __html: currentJob.description,
+                          }}
                         />
                       </>
                     ) : (
@@ -365,65 +398,70 @@ function JobPipelineDetailPage() {
                 )}
 
                 {/* Skills */}
-                {currentJob.skill_names && currentJob.skill_names.length > 0 && (
-                  <div>
-                    <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest mb-3">
-                      Required Skills
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {currentJob.skill_names.map((skill: string, idx: number) => (
-                        <span
-                          key={idx}
-                          className="px-3 py-1.5 rounded-xl bg-primary/10 text-primary text-xs font-bold border border-primary/20"
-                        >
-                          {skill}
-                        </span>
-                      ))}
+                {currentJob.skill_names &&
+                  currentJob.skill_names.length > 0 && (
+                    <div>
+                      <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest mb-3">
+                        Required Skills
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {currentJob.skill_names.map(
+                          (skill: string, idx: number) => (
+                            <span
+                              key={idx}
+                              className="px-3 py-1.5 rounded-xl bg-primary/10 text-primary text-xs font-bold border border-primary/20"
+                            >
+                              {skill}
+                            </span>
+                          ),
+                        )}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
                 {/* Benefits */}
-                {currentJob.benefit_names && currentJob.benefit_names.length > 0 && (
-                  <div>
-                    <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest mb-3">
-                      Benefits
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {currentJob.benefit_names.map(
-                        (benefit: string, idx: number) => (
-                          <span
-                            key={idx}
-                            className="px-3 py-1.5 rounded-xl bg-emerald-500/10 text-emerald-600 text-xs font-bold border border-emerald-500/20"
-                          >
-                            {benefit}
-                          </span>
-                        ),
-                      )}
+                {currentJob.benefit_names &&
+                  currentJob.benefit_names.length > 0 && (
+                    <div>
+                      <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest mb-3">
+                        Benefits
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {currentJob.benefit_names.map(
+                          (benefit: string, idx: number) => (
+                            <span
+                              key={idx}
+                              className="px-3 py-1.5 rounded-xl bg-emerald-500/10 text-emerald-600 text-xs font-bold border border-emerald-500/20"
+                            >
+                              {benefit}
+                            </span>
+                          ),
+                        )}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
                 {/* Custom Perks */}
-                {currentJob.custom_perks && currentJob.custom_perks.length > 0 && (
-                  <div>
-                    <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest mb-3">
-                      Perks
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {currentJob.custom_perks.map(
-                        (perk: string, idx: number) => (
-                          <span
-                            key={idx}
-                            className="px-3 py-1.5 rounded-xl bg-purple-500/10 text-purple-600 text-xs font-bold border border-purple-500/20"
-                          >
-                            {perk}
-                          </span>
-                        ),
-                      )}
+                {currentJob.custom_perks &&
+                  currentJob.custom_perks.length > 0 && (
+                    <div>
+                      <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest mb-3">
+                        Perks
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {currentJob.custom_perks.map(
+                          (perk: string, idx: number) => (
+                            <span
+                              key={idx}
+                              className="px-3 py-1.5 rounded-xl bg-purple-500/10 text-purple-600 text-xs font-bold border border-purple-500/20"
+                            >
+                              {perk}
+                            </span>
+                          ),
+                        )}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
                 {/* Hiring Managers */}
                 {currentJob.hiring_manager_names &&
@@ -535,7 +573,9 @@ function JobPipelineDetailPage() {
                   disabled={!currentJob}
                   className="flex-[2] active-tab-gradient py-3 rounded-xl text-white font-bold text-sm shadow-glow transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                 >
-                  <span className="material-symbols-outlined text-lg">edit_note</span>
+                  <span className="material-symbols-outlined text-lg">
+                    edit_note
+                  </span>
                   Edit Job
                 </button>
               </div>
@@ -758,22 +798,138 @@ function JobPipelineDetailPage() {
         )}
       </AnimatePresence>
 
+      {/* --- ADD CANDIDATE MODAL --- */}
+      <AnimatePresence>
+        {showAddCandidateModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowAddCandidateModal(false)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              className="relative w-full max-w-3xl glass-panel rounded-[2rem] shadow-2xl border-[var(--border-subtle)] overflow-hidden max-h-[85vh] flex flex-col bg-[var(--surface)]"
+            >
+              <div className="flex justify-between items-center p-6 border-b border-[var(--border-subtle)] bg-[var(--surface)] z-10">
+                <h3 className="text-xl font-bold text-[var(--text-main)]">
+                  Add Candidate
+                </h3>
+                <button
+                  onClick={() => setShowAddCandidateModal(false)}
+                  className="p-2 rounded-xl hover:bg-[var(--input-bg)] text-[var(--text-muted)] transition-all"
+                >
+                  <span className="material-symbols-outlined">close</span>
+                </button>
+              </div>
+
+              <div className="p-6 border-b border-[var(--border-subtle)] bg-[var(--input-bg)] flex gap-4 flex-col sm:flex-row">
+                <div className="relative flex-1">
+                  <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]">
+                    search
+                  </span>
+                  <input
+                    type="text"
+                    value={candidateSearchQuery}
+                    onChange={(e) => setCandidateSearchQuery(e.target.value)}
+                    placeholder="Search by name..."
+                    className="w-full premium-input pl-10 pr-4 py-2.5 rounded-xl text-sm font-semibold"
+                  />
+                </div>
+                {/* <div className="relative flex-1">
+                  <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]">
+                    work
+                  </span>
+                  <input
+                    type="text"
+                    value={candidateJobTitleFilter}
+                    onChange={(e) => setCandidateJobTitleFilter(e.target.value)}
+                    placeholder="Filter by job title..."
+                    className="w-full premium-input pl-10 pr-4 py-2.5 rounded-xl text-sm font-semibold"
+                  />
+                </div> */}
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-6 space-y-3">
+                {allCandidatesList
+                  .filter((c: any) => {
+                    const nameMatch = c.name
+                      ?.toLowerCase()
+                      .includes(candidateSearchQuery.toLowerCase());
+                    const jobMatch = c.jobTitle
+                      ?.toLowerCase()
+                      .includes(candidateJobTitleFilter.toLowerCase());
+                    return nameMatch && jobMatch;
+                  })
+                  .map((c: any) => (
+                    <div
+                      key={c.id}
+                      className="flex items-center justify-between p-4 rounded-xl border border-[var(--border-subtle)] hover:border-primary/50 hover:bg-[var(--input-bg)] transition-all group"
+                    >
+                      <div className="flex items-center gap-4">
+                        <Image
+                          src={`${c.avatar || "avatar-1.jpg"}`}
+                          alt={c.name}
+                          width={48}
+                          height={48}
+                          className="w-12 h-12 rounded-xl object-cover"
+                        />
+                        <div>
+                          <h4 className="font-bold text-[var(--text-main)] group-hover:text-primary transition-colors">
+                            {c.name}
+                          </h4>
+                          <p className="text-xs text-[var(--text-muted)] font-medium">
+                            {c.id || "No title specified"} • {c.email}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleAddCandidateFromList(c)}
+                        className="px-4 py-2 rounded-lg bg-primary/10 text-primary text-xs font-bold hover:bg-primary hover:text-white transition-all shadow-sm"
+                      >
+                        Select
+                      </button>
+                    </div>
+                  ))}
+                {allCandidatesList.length === 0 && (
+                  <div className="text-center p-8 text-[var(--text-muted)]">
+                    No candidates found.
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* --- FULL PAGE LOADER --- */}
       <AnimatePresence>
         {isLoading && (
           <motion.div
             key="page-loader"
             initial={{ opacity: 1 }}
-            exit={{ opacity: 0, transition: { duration: 0.4, ease: "easeOut" } }}
+            exit={{
+              opacity: 0,
+              transition: { duration: 0.4, ease: "easeOut" },
+            }}
             className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-[var(--background)]/90 backdrop-blur-md"
           >
             {/* Outer glow ring */}
             <div className="relative flex items-center justify-center mb-8">
-              <div className="absolute w-28 h-28 rounded-full bg-primary/10 animate-ping" style={{ animationDuration: "1.8s" }} />
+              <div
+                className="absolute w-28 h-28 rounded-full bg-primary/10 animate-ping"
+                style={{ animationDuration: "1.8s" }}
+              />
               <div className="absolute w-20 h-20 rounded-full bg-primary/15 blur-md" />
               <div className="w-16 h-16 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
               <div className="absolute w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
-                <span className="material-symbols-outlined text-primary text-base">work</span>
+                <span className="material-symbols-outlined text-primary text-base">
+                  work
+                </span>
               </div>
             </div>
 
@@ -826,7 +982,7 @@ function JobPipelineDetailPage() {
           <span className="material-symbols-outlined text-sm opacity-40">
             chevron_right
           </span>
-          <span className="text-primary">Candidate Pipeline</span>
+          <span className="text-primary">Job Details</span>
         </nav>
 
         {/* Title Section */}
@@ -891,7 +1047,9 @@ function JobPipelineDetailPage() {
               {isNavigatingToEdit ? (
                 <span className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
               ) : (
-                <span className="material-symbols-outlined text-xl opacity-70">edit_note</span>
+                <span className="material-symbols-outlined text-xl opacity-70">
+                  edit_note
+                </span>
               )}
               {isNavigatingToEdit ? "Loading..." : "Edit Job"}
             </button>
@@ -1044,7 +1202,7 @@ function JobPipelineDetailPage() {
         {/* Filters and Main List */}
         <div className="flex flex-col md:flex-row items-center justify-between mb-8 gap-4">
           <h2 className="text-xl font-bold text-[var(--text-main)] tracking-tight">
-            Candidate Pipeline
+            All Applied Candidates
           </h2>
           <div className="flex flex-col md:flex-row items-center gap-3 w-full md:w-auto">
             <div className="flex items-center gap-3">
@@ -1056,24 +1214,36 @@ function JobPipelineDetailPage() {
                   className="premium-input pl-10 pr-4 py-2.5 rounded-xl text-[var(--text-main)] font-semibold text-sm w-full md:w-64"
                   placeholder="Find a candidate..."
                   type="text"
+                  value={appliedSearchQuery}
+                  onChange={(e) => setAppliedSearchQuery(e.target.value)}
                 />
               </div>
-              <button className="flex items-center gap-2 px-4 py-2.5 bg-[var(--surface)] border border-[var(--border-subtle)] rounded-xl text-xs font-bold text-[var(--text-muted)] hover:text-primary transition-all shadow-sm">
-                <span className="material-symbols-outlined text-lg">
-                  filter_list
-                </span>
-                Refine
-              </button>
+              {appliedSearchQuery && (
+                <button
+                  onClick={() => setAppliedSearchQuery("")}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-[var(--surface)] border border-[var(--border-subtle)] rounded-xl text-xs font-bold text-[var(--text-muted)] hover:text-primary transition-all shadow-sm"
+                >
+                  <span className="material-symbols-outlined text-lg">
+                    close
+                  </span>
+                  Reset All
+                </button>
+              )}
             </div>
 
             <button
-              onClick={() => router.push("/users/system/candidates")}
+              onClick={() => {
+                setAllCandidatesList(getAllCandidates());
+                setCandidateSearchQuery("");
+                setCandidateJobTitleFilter("");
+                setShowAddCandidateModal(true);
+              }}
               className="w-full sm:w-auto active-tab-gradient text-white font-semibold px-6 py-3.5 rounded-2xl flex items-center justify-center gap-2 shadow-premium text-sm"
             >
               <span className="material-symbols-outlined text-xl">
-                add_circle
+                person_add
               </span>{" "}
-              Create Job
+              Add Candidate
             </button>
           </div>
         </div>
@@ -1093,14 +1263,27 @@ function JobPipelineDetailPage() {
               animate="visible"
               className="grid grid-cols-1 md:grid-cols-2 gap-6"
             >
-              {candidates?.map((c: any, i) => (
-                <CandidateCard
-                  key={c.id || i}
-                  candidate={c}
-                  onEmailClick={openEmailModal}
-                  onDeleteClick={openDeleteModal}
-                />
-              ))}
+              {candidates
+                ?.filter((c: any) => {
+                  const query = appliedSearchQuery.trim().toLowerCase();
+                  if (!query) return true;
+
+                  const searchableText =
+                    `${String(c.first_name || "")} ${String(c.last_name || "")} ${String(c.name || "")}`.toLowerCase();
+                  const tokens = query.split(/\s+/);
+
+                  return tokens.every((token) =>
+                    searchableText.includes(token),
+                  );
+                })
+                .map((c: any, i) => (
+                  <CandidateCard
+                    key={c.id || i}
+                    candidate={c}
+                    onEmailClick={openEmailModal}
+                    onDeleteClick={openDeleteModal}
+                  />
+                ))}
             </motion.div>
           )}
         </div>
@@ -1135,12 +1318,13 @@ const CandidateCard = memo(
   ({ candidate, onEmailClick, onDeleteClick }: any) => {
     const router = useRouter();
 
+    const skills = candidate?.skills;
     const flattenedSkills = React.useMemo(() => {
-      if (!candidate?.skills) return [];
-      return candidate.skills
+      if (!skills) return [];
+      return skills
         .flatMap((s: any) => (typeof s === "string" ? [s] : s.skills || []))
         .slice(0, 6);
-    }, [candidate?.skills]);
+    }, [skills]);
 
     return (
       <motion.div
@@ -1168,10 +1352,10 @@ const CandidateCard = memo(
               </p>
               <div className="flex gap-3 mt-3">
                 <span className="px-2.5 py-0.5 rounded-lg bg-primary/10 text-primary text-[10px] font-bold border border-primary/10">
-                  {candidate?.status}
+                  {candidate?.pipeline_stage}
                 </span>
                 <span className="text-[var(--text-muted)] text-[10px] font-medium self-center opacity-60">
-                  Updated {candidate?.updated}
+                  Updated {candidate?.updated_at}
                 </span>
               </div>
             </div>
@@ -1198,12 +1382,12 @@ const CandidateCard = memo(
             onClick={() => {
               router.push(
                 candidate?.isUnicorn
-                  ? `/users/system/jobs/active_jobs/candidate_list/${candidate?.first_name?.toLowerCase()?.replace(" ", "-")}`
-                  : `/users/system/jobs/active_jobs/candidate_list/${candidate?.first_name?.toLowerCase()?.replace(" ", "-")}`,
+                  ? `/users/system/jobs/active_jobs/candidate_list/${candidate?.id}`
+                  : `/users/system/jobs/active_jobs/candidate_list/${candidate?.id}`,
               );
             }}
           >
-            {candidate?.isUnicorn ? "Manage Offer" : "Move Stage"}
+            View Pipeline
           </button>
           <button
             onClick={() => onEmailClick(candidate)}

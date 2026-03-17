@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
-import { JobDraft, fetchRichJobTemplates } from "@/services/jobService";
+import { JobDraft, fetchRichJobTemplates, saveDraft } from "@/services/jobService";
 
 // ==========================================
 // 1. Animation Variants & Helpers
@@ -393,7 +393,8 @@ export default function DraftJobsPage() {
               <div className="p-6 border-t border-[var(--border-subtle)] bg-[var(--surface)]/80 flex justify-end gap-4 shrink-0">
                 <button
                   onClick={() => {
-                    // Navigate to active jobs after publishing
+                    // Save template to draft before navigating to load the data fields
+                    saveDraft(selectedDraft);
                     setSelectedDraft(null);
                     router.push("/users/system/jobs/create/details");
                   }}

@@ -286,13 +286,76 @@ export async function fetchActiveJobs(): Promise<any[]> {
   }));
 }
 
+export const LS_CLOSED_JOBS_KEY = "closed_jobs";
+
+export function getClosedJobs(): JobDraft[] {
+  try {
+    const raw = localStorage.getItem(LS_CLOSED_JOBS_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {
+    // ignore
+  }
+  return [];
+}
+
+export async function fetchClosedJobs(): Promise<any[]> {
+  await new Promise((r) => setTimeout(r, 600));
+  const jobs = getClosedJobs();
+  // Add fallback mock jobs if empty so we have something to show
+  const baseJobs = jobs.length > 0 ? jobs : mockJobTemplates.map(j => ({ ...j, status: JobStatus.Closed as any }));
+  
+  return baseJobs.map((job, i) => ({
+    ...job,
+    id: `CLOSED-JOB-${1000 + i}`,
+    stats: {
+      applied: Math.floor(Math.random() * 100) + 50,
+      screening: Math.floor(Math.random() * 40) + 10,
+      interview: Math.floor(Math.random() * 20) + 5,
+      offer: Math.floor(Math.random() * 5) + 1,
+      total: Math.floor(Math.random() * 150) + 50,
+    },
+    dateClosed: job.updated_at ? new Date(job.updated_at).toLocaleDateString() : new Date().toLocaleDateString(),
+    timeToFill: `${Math.floor(Math.random() * 40) + 10} Days`,
+    hiredCandidate: { name: "Jane Doe", avatar: `avatar-${(i % 5) + 1}.jpg` },
+  }));
+}
+
 export async function deleteActiveJobs(jobsToRemove: any[]): Promise<void> {
   await new Promise((r) => setTimeout(r, 600));
   const activeJobs = getActiveJobs();
   // We use title for matching because draft id isn't fully set up with a uuid in the current localstorage implementation
   const idsToRemove = jobsToRemove.map((j) => j.title);
+  
+  const closingJobs = activeJobs.filter((j) => idsToRemove.includes(j.title));
   const updatedJobs = activeJobs.filter((j) => !idsToRemove.includes(j.title));
+  
   localStorage.setItem(LS_ACTIVE_JOBS_KEY, JSON.stringify(updatedJobs));
+
+  // Add to closed jobs
+  const closedJobs = getClosedJobs();
+  const newClosedJobs = [...closedJobs, ...closingJobs.map(j => ({ ...j, status: JobStatus.Closed as any, updated_at: new Date().toISOString() }))];
+  localStorage.setItem(LS_CLOSED_JOBS_KEY, JSON.stringify(newClosedJobs));
+}
+
+export async function reopenClosedJob(jobTitle: string): Promise<void> {
+  await new Promise((r) => setTimeout(r, 600));
+  const closedJobs = getClosedJobs();
+  const jobToReopen = closedJobs.find(j => j.title === jobTitle);
+  if (!jobToReopen) return;
+  
+  const updatedClosedJobs = closedJobs.filter(j => j.title !== jobTitle);
+  localStorage.setItem(LS_CLOSED_JOBS_KEY, JSON.stringify(updatedClosedJobs));
+  
+  const activeJobs = getActiveJobs();
+  const newActiveJob = { ...jobToReopen, status: JobStatus.Active, updated_at: new Date().toISOString() };
+  localStorage.setItem(LS_ACTIVE_JOBS_KEY, JSON.stringify([...activeJobs, newActiveJob]));
+}
+
+export async function deleteClosedJob(jobTitle: string): Promise<void> {
+  await new Promise((r) => setTimeout(r, 600));
+  const closedJobs = getClosedJobs();
+  const updatedClosedJobs = closedJobs.filter(j => j.title !== jobTitle);
+  localStorage.setItem(LS_CLOSED_JOBS_KEY, JSON.stringify(updatedClosedJobs));
 }
 
 export function publishJob(draft: JobDraft): JobDraft {

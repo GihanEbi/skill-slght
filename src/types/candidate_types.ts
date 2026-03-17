@@ -20,6 +20,18 @@ export enum CandidateStatus {
   Blacklisted = "BLACKLISTED",
 }
 
+export enum CandidatePipelineStatus {
+  Reviewing = "REVIEWING",
+  AiInterviewing = "AI_INTERVIEWING",
+  AiInterviewCompleted = "AI_INTERVIEW_COMPLETED",
+  TechnicalInterview = "TECHNICAL_INTERVIEW",
+  TechnicalInterviewCompleted = "TECHNICAL_INTERVIEW_COMPLETED",
+  HiringManagerInterview = "HIRING_MANAGER_INTERVIEW",
+  HiringManagerInterviewCompleted = "HIRING_MANAGER_INTERVIEW_COMPLETED",
+  Offered = "OFFERED",
+  Rejected = "REJECTED",
+}
+
 export enum CandidateSource {
   LinkedIn = "LINKEDIN",
   Indeed = "INDEED",
@@ -84,7 +96,7 @@ export interface Candidate {
   current_role: string;
   current_company: string;
   isUnicorn: boolean;
-  pipeline_status: CandidateJobStatus;
+  pipeline_status: CandidatePipelineStatus;
   pipeline_stage: string;
   created_at: string;
   updated_at: string;

@@ -4,6 +4,7 @@ import {
   CandidateStatus,
   CandidateSource,
   AvailabilityStatus,
+  CandidatePipelineStatus,
 } from "../types/candidate_types";
 import { ProficiencyLevel, JobStatus } from "../types/job_types";
 import { CandidateJobStatus } from "../types/candidate_job_types";
@@ -69,14 +70,15 @@ let mockCandidates: Candidate[] = [
     country: "Germany",
     city: "Berlin",
     status: CandidateStatus.Active,
+
     candidate_source: CandidateSource.LinkedIn,
     availability_status: AvailabilityStatus.Immediately,
     avatar_id: "user-preview.png",
     current_role: "Senior Software Engineer",
     current_company: "JIT",
     isUnicorn: true,
-    pipeline_status: CandidateJobStatus.Active,
-    pipeline_stage: "Offer Extended",
+    pipeline_status: CandidatePipelineStatus.AiInterviewing,
+    pipeline_stage: "AI Interviewing",
     created_at: "2024-02-12T08:30:00Z",
     updated_at: new Date().toISOString(),
 
@@ -181,8 +183,8 @@ let mockCandidates: Candidate[] = [
     current_role: "Backend Engineer",
     current_company: "Coinbase (Ex)",
     isUnicorn: false,
-    pipeline_status: CandidateJobStatus.Active,
-    pipeline_stage: "Interviewing",
+    pipeline_status: CandidatePipelineStatus.AiInterviewCompleted,
+    pipeline_stage: "AI Interview Completed",
     created_at: "2024-02-18T10:15:00Z",
     updated_at: new Date().toISOString(),
 
@@ -274,8 +276,254 @@ let mockCandidates: Candidate[] = [
     current_role: "ZKP Researcher",
     current_company: "Privacy Labs",
     isUnicorn: false,
-    pipeline_status: CandidateJobStatus.Active,
-    pipeline_stage: "Screening",
+    pipeline_status: CandidatePipelineStatus.TechnicalInterview,
+    pipeline_stage: "Technical Interview",
+    created_at: "2024-02-20T09:00:00Z",
+    updated_at: new Date().toISOString(),
+
+    resume_file_name: "Elena_Volkov_Academic_CV.pdf",
+    resume_size: "3.1 MB",
+
+    total_experience: "4 Years",
+    expected_salary: "£120k - £140k GBP",
+    languages: "English, Russian",
+
+    // Resume & Links
+    social_links: [
+      {
+        platform: "LinkedIn",
+        url: "https://linkedin.com/in/marcusthorne",
+      },
+      {
+        platform: "Website",
+        url: "https://mthorne.io",
+      },
+      {
+        platform: "GitHub",
+        url: "https://github.com/mthorne-dev",
+      },
+    ],
+
+    // Core Expertise
+    skills: [
+      {
+        category: "Languages",
+        skills: ["Rust", "EVM", "Protocol", "Go", "Solidity", "Cryptography"],
+      },
+      {
+        category: "Protocols & Tech",
+        skills: ["EVM", "IPFS", "Zero Knowledge", "Multi-sig Auth", "libp2p"],
+      },
+      {
+        category: "Frameworks",
+        skills: ["Hardhat", "Foundry", "React", "Next.js", "Express"],
+      },
+      {
+        category: "Infrastructure",
+        skills: ["AWS", "Kubernetes", "Docker", "Terraform", "CI/CD"],
+      },
+    ],
+
+    assessments: [
+      { label: "Cryptography Quiz", score: 98 },
+      { label: "Algorithms", score: 91 },
+    ],
+
+    experiences: [
+      {
+        id: "EXP-6",
+        company_name: "Privacy Labs",
+        job_title: "ZKP Researcher",
+        start_date: "2022-09-01",
+        end_date: null,
+        is_currently_work_here: true,
+        role_contribution:
+          "Researching and implementing novel zk-SNARK circuits for privacy-preserving transactions.",
+        technologies: ["C++", "Circom", "Python"],
+      },
+    ],
+  },
+  {
+    id: "CAND-004",
+    first_name: "Gayashan",
+    last_name: "Weerasundara",
+    email: "gayashan@gmail.com",
+    phone_no: "+94 741 123456",
+    country: "Sri Lanka",
+    city: "Colombo",
+    status: CandidateStatus.Active,
+    candidate_source: CandidateSource.Agency,
+    availability_status: AvailabilityStatus.TwoWeeks,
+    avatar_id: "gihan.jpeg",
+    current_role: "ZKP Researcher",
+    current_company: "Privacy Labs",
+    isUnicorn: false,
+    pipeline_status: CandidatePipelineStatus.TechnicalInterviewCompleted,
+    pipeline_stage: "Technical Interview Completed",
+    created_at: "2024-02-20T09:00:00Z",
+    updated_at: new Date().toISOString(),
+
+    resume_file_name: "Elena_Volkov_Academic_CV.pdf",
+    resume_size: "3.1 MB",
+
+    total_experience: "4 Years",
+    expected_salary: "£120k - £140k GBP",
+    languages: "English, Russian",
+
+    // Resume & Links
+    social_links: [
+      {
+        platform: "LinkedIn",
+        url: "https://linkedin.com/in/marcusthorne",
+      },
+      {
+        platform: "Website",
+        url: "https://mthorne.io",
+      },
+      {
+        platform: "GitHub",
+        url: "https://github.com/mthorne-dev",
+      },
+    ],
+
+    // Core Expertise
+    skills: [
+      {
+        category: "Languages",
+        skills: ["Rust", "EVM", "Protocol", "Go", "Solidity", "Cryptography"],
+      },
+      {
+        category: "Protocols & Tech",
+        skills: ["EVM", "IPFS", "Zero Knowledge", "Multi-sig Auth", "libp2p"],
+      },
+      {
+        category: "Frameworks",
+        skills: ["Hardhat", "Foundry", "React", "Next.js", "Express"],
+      },
+      {
+        category: "Infrastructure",
+        skills: ["AWS", "Kubernetes", "Docker", "Terraform", "CI/CD"],
+      },
+    ],
+
+    assessments: [
+      { label: "Cryptography Quiz", score: 98 },
+      { label: "Algorithms", score: 91 },
+    ],
+
+    experiences: [
+      {
+        id: "EXP-6",
+        company_name: "Privacy Labs",
+        job_title: "ZKP Researcher",
+        start_date: "2022-09-01",
+        end_date: null,
+        is_currently_work_here: true,
+        role_contribution:
+          "Researching and implementing novel zk-SNARK circuits for privacy-preserving transactions.",
+        technologies: ["C++", "Circom", "Python"],
+      },
+    ],
+  },
+  {
+    id: "CAND-005",
+    first_name: "Reshani",
+    last_name: "Rukshika",
+    email: "reshani@gmail.com",
+    phone_no: "+94 741 123456",
+    country: "Sri Lanka",
+    city: "Colombo",
+    status: CandidateStatus.Active,
+    candidate_source: CandidateSource.Agency,
+    availability_status: AvailabilityStatus.TwoWeeks,
+    avatar_id: "gihan.jpeg",
+    current_role: "ZKP Researcher",
+    current_company: "Privacy Labs",
+    isUnicorn: false,
+    pipeline_status: CandidatePipelineStatus.HiringManagerInterview,
+    pipeline_stage: "Hiring Manager Interview",
+    created_at: "2024-02-20T09:00:00Z",
+    updated_at: new Date().toISOString(),
+
+    resume_file_name: "Elena_Volkov_Academic_CV.pdf",
+    resume_size: "3.1 MB",
+
+    total_experience: "4 Years",
+    expected_salary: "£120k - £140k GBP",
+    languages: "English, Russian",
+
+    // Resume & Links
+    social_links: [
+      {
+        platform: "LinkedIn",
+        url: "https://linkedin.com/in/marcusthorne",
+      },
+      {
+        platform: "Website",
+        url: "https://mthorne.io",
+      },
+      {
+        platform: "GitHub",
+        url: "https://github.com/mthorne-dev",
+      },
+    ],
+
+    // Core Expertise
+    skills: [
+      {
+        category: "Languages",
+        skills: ["Rust", "EVM", "Protocol", "Go", "Solidity", "Cryptography"],
+      },
+      {
+        category: "Protocols & Tech",
+        skills: ["EVM", "IPFS", "Zero Knowledge", "Multi-sig Auth", "libp2p"],
+      },
+      {
+        category: "Frameworks",
+        skills: ["Hardhat", "Foundry", "React", "Next.js", "Express"],
+      },
+      {
+        category: "Infrastructure",
+        skills: ["AWS", "Kubernetes", "Docker", "Terraform", "CI/CD"],
+      },
+    ],
+
+    assessments: [
+      { label: "Cryptography Quiz", score: 98 },
+      { label: "Algorithms", score: 91 },
+    ],
+
+    experiences: [
+      {
+        id: "EXP-6",
+        company_name: "Privacy Labs",
+        job_title: "ZKP Researcher",
+        start_date: "2022-09-01",
+        end_date: null,
+        is_currently_work_here: true,
+        role_contribution:
+          "Researching and implementing novel zk-SNARK circuits for privacy-preserving transactions.",
+        technologies: ["C++", "Circom", "Python"],
+      },
+    ],
+  },
+  {
+    id: "CAND-006",
+    first_name: "Awantha",
+    last_name: "Wijenayake",
+    email: "awantha@gmail.com",
+    phone_no: "+94 741 123456",
+    country: "Sri Lanka",
+    city: "Colombo",
+    status: CandidateStatus.Active,
+    candidate_source: CandidateSource.Agency,
+    availability_status: AvailabilityStatus.TwoWeeks,
+    avatar_id: "gihan.jpeg",
+    current_role: "ZKP Researcher",
+    current_company: "Privacy Labs",
+    isUnicorn: false,
+    pipeline_status: CandidatePipelineStatus.HiringManagerInterviewCompleted,
+    pipeline_stage: "Hiring Manager Interview Completed",
     created_at: "2024-02-20T09:00:00Z",
     updated_at: new Date().toISOString(),
 
@@ -408,7 +656,7 @@ export const addCandidateToPipeline = async (aiMatch: any) => {
     current_role: aiMatch.strength || "Software Engineer",
     current_company: "Tech Startups Inc.",
     isUnicorn: false,
-    pipeline_status: CandidateJobStatus.Active,
+    pipeline_status: CandidatePipelineStatus.Reviewing,
     pipeline_stage: "Reviewing",
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
@@ -422,7 +670,7 @@ export const addCandidateToPipeline = async (aiMatch: any) => {
       {
         platform: "GitHub",
         url: `https://github.com/${aiMatch.first_name.toLowerCase()}-${aiMatch.last_name.toLowerCase()}`,
-      }
+      },
     ],
     resume_file_name: `${aiMatch.first_name}_${aiMatch.last_name}_CV.pdf`,
     resume_size: "1.2 MB",
@@ -433,14 +681,14 @@ export const addCandidateToPipeline = async (aiMatch: any) => {
     languages: "English, Spanish",
 
     // Core Expertise
-    skills: aiMatch.skills 
-      ? [{ category: "General", skills: aiMatch.skills }] 
+    skills: aiMatch.skills
+      ? [{ category: "General", skills: aiMatch.skills }]
       : [{ category: "General", skills: ["JavaScript", "React", "Node.js"] }],
 
     // Assessment Scores
     assessments: [
       { label: "Technical Screen", score: 85 },
-      { label: "Cultural Fit", score: 92 }
+      { label: "Cultural Fit", score: 92 },
     ],
 
     // Experience
@@ -452,9 +700,9 @@ export const addCandidateToPipeline = async (aiMatch: any) => {
         start_date: "2020-01-01",
         end_date: null,
         is_currently_work_here: true,
-        role_contribution: `Developed scalable architecture and led a team in the ${aiMatch.strength || 'engineering'} department.`,
-        technologies: ["TypeScript", "React", "Node.js"]
-      }
+        role_contribution: `Developed scalable architecture and led a team in the ${aiMatch.strength || "engineering"} department.`,
+        technologies: ["TypeScript", "React", "Node.js"],
+      },
     ],
   };
 
