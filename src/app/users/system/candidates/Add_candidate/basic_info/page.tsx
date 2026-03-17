@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAddCandidate } from "@/context/AddCandidateContext";
-import { CandidateSource } from "@/types/candidate_types";
+import { CandidateSource, CandidateStatus } from "@/types/candidate_types";
 import { motion, AnimatePresence } from "framer-motion";
 
 function BasicInfoContent() {
@@ -16,9 +16,198 @@ function BasicInfoContent() {
   const [profileImage, setProfileImage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [showMethodPopup, setShowMethodPopup] = useState(false);
+  const [popupMode, setPopupMode] = useState<
+    "selection" | "upload" | "loading"
+  >("selection");
+  const cvFileInputRef = useRef<HTMLInputElement>(null);
+  const [hasPromptedMethod, setHasPromptedMethod] = useState(false);
+
+  useEffect(() => {
+    // Show popup if not editing and no first name has been entered yet.
+    if (
+      !editId &&
+      !formData.step1.firstName &&
+      !formData.step1.email &&
+      !hasPromptedMethod
+    ) {
+      setShowMethodPopup(true);
+      setHasPromptedMethod(true);
+    }
+  }, [
+    editId,
+    formData.step1.firstName,
+    formData.step1.email,
+    hasPromptedMethod,
+  ]);
+
+  const handleManualSelection = () => {
+    setShowMethodPopup(false);
+  };
+
+  const handleCvUploadClick = () => {
+    setPopupMode("upload");
+  };
+
+  const handleCvFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setPopupMode("loading");
+      // Simulate CV parsing delay
+      setTimeout(() => {
+        // Mock extracted data following AddCandidateFormData structure
+        // and matching field names used in other pages (Candidate Details etc.)
+        updateStepData("step1", {
+          firstName: "John",
+          lastName: "Doe",
+          email: "john.doe@techneura.com",
+          phone: "+1 234 567 8900",
+          country: "United States",
+          city: "San Francisco",
+          timezone: "GMT-8 (PST)",
+          willingToRelocate: true,
+          linkedInUrl: "https://linkedin.com/in/johndoe",
+          source: CandidateSource.Other,
+          sourceDetail: "CV Parsing System",
+        });
+
+        updateStepData("step2", {
+          currentJobTitle: "Senior Full Stack Engineer",
+          currentCompany: "Innovative Systems Inc.",
+          currentSalary: 145000,
+          currentSalaryCurrency: "USD",
+          availabilityStatus: "immediately",
+          earliestStartDate: "2024-05-01",
+          status: CandidateStatus.Active,
+        });
+
+        updateStepData("step3", {
+          skills: [
+            { skillName: "React", proficiency: "expert", yearsOfExperience: 6 },
+            {
+              skillName: "TypeScript",
+              proficiency: "advanced",
+              yearsOfExperience: 5,
+            },
+            {
+              skillName: "Node.js",
+              proficiency: "advanced",
+              yearsOfExperience: 5,
+            },
+            {
+              skillName: "Python",
+              proficiency: "intermediate",
+              yearsOfExperience: 3,
+            },
+            { skillName: "AWS", proficiency: "advanced", yearsOfExperience: 4 },
+            {
+              skillName: "Docker",
+              proficiency: "intermediate",
+              yearsOfExperience: 3,
+            },
+          ],
+        });
+
+        updateStepData("step4", {
+          workExperience: [
+            {
+              id: "exp-1",
+              companyName: "Innovative Systems Inc.",
+              jobTitle: "Senior Full Stack Engineer",
+              startDate: "2020-03-01",
+              endDate: null,
+              isCurrent: true,
+              location: "San Francisco, CA",
+              description:
+                "Leading the development of a cloud-native microservices platform using React, Node.js, and AWS. Improved system performance by 40% through infrastructure optimization.",
+            },
+            {
+              id: "exp-2",
+              companyName: "Web Solutions Ltd",
+              jobTitle: "Software Developer",
+              startDate: "2017-06-15",
+              endDate: "2020-02-28",
+              isCurrent: false,
+              location: "Austin, TX",
+              description:
+                "Developed and maintained various client-facing web applications focusing on responsive design and performance.",
+            },
+          ],
+        });
+
+        updateStepData("step5", {
+          education: [
+            {
+              institution: "Stanford University",
+              degree: "Master of Science",
+              fieldOfStudy: "Computer Science",
+              startDate: "2015-09-01",
+              endDate: "2017-05-20",
+              grade: "3.9/4.0",
+            },
+          ],
+        });
+
+        setShowMethodPopup(false);
+        // Reset popup mode for next time
+        setTimeout(() => setPopupMode("selection"), 500);
+      }, 3000); // 3 seconds mock loading
+    }
+  };
+
   useEffect(() => {
     if (editId) {
-      setProfileImage("/images/avatar-img/avatar-1.jpg");
+      const rawData = localStorage.getItem("all-candidates");
+      let foundImage = null;
+      let displayIndex = 0;
+
+      if (rawData) {
+        try {
+          const storedCandidates = JSON.parse(rawData);
+          if (Array.isArray(storedCandidates)) {
+            const foundIndex = storedCandidates.findIndex(
+              (c: any) =>
+                c.id && c.id.replace("#", "") === editId.replace("#", ""),
+            );
+            if (foundIndex !== -1) {
+              const candidate = storedCandidates[foundIndex];
+              displayIndex = foundIndex;
+              if (
+                candidate.profilePhotoUrl ||
+                candidate.step1?.profilePhotoUrl ||
+                candidate.step1?.profilePhoto
+              ) {
+                foundImage =
+                  candidate.profilePhotoUrl ||
+                  candidate.step1?.profilePhotoUrl ||
+                  candidate.step1?.profilePhoto;
+              }
+              // Force dynamic override if the fallback image was saved previously
+              if (foundImage === "/images/avatar-img/avatar-1.jpg") {
+                foundImage = null;
+              }
+            }
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      }
+
+      if (!foundImage) {
+        const avatarImages = [
+          "avt1.png",
+          "avt2.png",
+          "avt3.jpg",
+          "avt4.jpg",
+          "avt5.jpg",
+          "avt6.png",
+          "avt7.jpg",
+          "avt8.png",
+        ];
+        foundImage = `/images/avatars/${avatarImages[displayIndex % avatarImages.length]}`;
+      }
+
+      setProfileImage(foundImage);
     }
   }, [editId]);
 
@@ -76,6 +265,129 @@ function BasicInfoContent() {
 
   return (
     <div className="flex flex-col h-full bg-transparent">
+      {/* ── Method Selection Popup ────────────────────────────────────────── */}
+      <AnimatePresence>
+        {showMethodPopup && (
+          <div className="fixed inset-0 z-200 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-md bg-(--surface) rounded-3xl border border-(--glass-border) shadow-2xl overflow-hidden p-8"
+            >
+              {popupMode === "selection" && (
+                <div className="text-center space-y-8">
+                  <div className="space-y-2">
+                    <h2 className="text-2xl font-bold text-(--text-main)">
+                      Add Candidate
+                    </h2>
+                    <p className="text-sm text-(--text-muted) font-medium">
+                      How would you like to build this candidate's profile?
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 gap-4">
+                    <button
+                      onClick={handleCvUploadClick}
+                      className="group flex flex-col items-center justify-center p-6 rounded-2xl border-2 border-primary/20 bg-primary/5 hover:border-primary hover:bg-primary/10 transition-all gap-3"
+                    >
+                      <span className="material-symbols-outlined text-4xl text-primary group-hover:scale-110 transition-transform">
+                        upload_file
+                      </span>
+                      <div className="space-y-1">
+                        <span className="font-bold text-(--text-main) block">
+                          Upload CV
+                        </span>
+                        <span className="text-xs text-(--text-muted) block">
+                          Auto-extract information from resume
+                        </span>
+                      </div>
+                    </button>
+                    <button
+                      onClick={handleManualSelection}
+                      className="group flex flex-col items-center justify-center p-6 rounded-2xl border-2 border-(--border-subtle) hover:border-primary/50 bg-(--background)/50 transition-all gap-3"
+                    >
+                      <span className="material-symbols-outlined text-4xl text-(--text-muted) group-hover:text-primary group-hover:scale-110 transition-all">
+                        edit_document
+                      </span>
+                      <div className="space-y-1">
+                        <span className="font-bold text-(--text-main) block">
+                          Enter Manually
+                        </span>
+                        <span className="text-xs text-(--text-muted) block">
+                          Type out all candidate details yourself
+                        </span>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {popupMode === "upload" && (
+                <div className="text-center space-y-8">
+                  <div className="space-y-2">
+                    <h2 className="text-2xl font-bold text-(--text-main)">
+                      Upload Resume
+                    </h2>
+                    <p className="text-sm text-(--text-muted) font-medium">
+                      Select a PDF or Word document to parse.
+                    </p>
+                  </div>
+                  <div
+                    onClick={() => cvFileInputRef.current?.click()}
+                    className="flex flex-col items-center justify-center p-8 rounded-2xl border-2 border-dashed border-primary/40 bg-primary/5 hover:border-primary hover:bg-primary/10 transition-all cursor-pointer gap-4 group"
+                  >
+                    <span className="material-symbols-outlined text-5xl text-primary/60 group-hover:text-primary transition-colors">
+                      cloud_upload
+                    </span>
+                    <span className="font-bold text-(--text-main)">
+                      Browse Files
+                    </span>
+                    <span className="text-xs text-(--text-muted)">
+                      Supports PDF, DOCX, TXT
+                    </span>
+                    <input
+                      type="file"
+                      ref={cvFileInputRef}
+                      className="hidden"
+                      accept=".pdf,.doc,.docx,.txt"
+                      onChange={handleCvFileChange}
+                    />
+                  </div>
+                  <button
+                    onClick={() => setPopupMode("selection")}
+                    className="text-sm font-bold text-(--text-muted) hover:text-(--text-main) transition-colors"
+                  >
+                    Back to selection
+                  </button>
+                </div>
+              )}
+
+              {popupMode === "loading" && (
+                <div className="text-center space-y-8 py-8">
+                  <div className="flex justify-center">
+                    <div className="w-16 h-16 border-4 border-primary/20 border-t-primary rounded-full animate-spin"></div>
+                  </div>
+                  <div className="space-y-2">
+                    <h2 className="text-xl font-bold text-(--text-main)">
+                      Extracting Data
+                    </h2>
+                    <p className="text-sm text-(--text-muted) font-medium animate-pulse">
+                      Parsing resume and analyzing profile details...
+                    </p>
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* ── Main Content Area (8/4 Grid) ─────────────────────────────────── */}
       <main className="flex-1 p-6 md:p-10">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">

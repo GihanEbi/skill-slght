@@ -10,22 +10,94 @@ import {
   addCandidateToPipeline,
   removeCandidateFromPipeline,
 } from "@/services/candidatePipelineService";
+import { fetchActiveJobs, saveDraft } from "@/services/jobService";
+import { getAllCandidates } from "@/services/candidateService";
 import { Candidate } from "@/types/candidate_types";
 
+// All cards appear at once — no stagger delay
 const containerVariants = {
   hidden: { opacity: 0 },
-  visible: { opacity: 1, transition: { staggerChildren: 0.08 } },
+  visible: { opacity: 1, transition: { duration: 0.2 } },
 };
 
 const itemVariants = {
-  hidden: { y: 15, opacity: 0 },
-  visible: { y: 0, opacity: 1, transition: { duration: 0.4 } },
+  hidden: { opacity: 0 },
+  visible: { opacity: 1 },
 };
 
+// Simple time ago formatter
+function timeAgo(dateString: string) {
+  if (!dateString) return "Recently";
+  const now = new Date();
+  const past = new Date(dateString);
+  if (isNaN(past.getTime())) return "Recently";
+  const diffInSeconds = Math.floor((now.getTime() - past.getTime()) / 1000);
+  if (isNaN(diffInSeconds)) return "Recently";
+  if (diffInSeconds < 60) return "Just now";
+  const diffInMinutes = Math.floor(diffInSeconds / 60);
+  if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
+  const diffInHours = Math.floor(diffInMinutes / 60);
+  if (diffInHours < 24) return `${diffInHours}h ago`;
+  const diffInDays = Math.floor(diffInHours / 24);
+  if (diffInDays < 30) return `${diffInDays}d ago`;
+  return past.toLocaleDateString();
+}
+
 function JobPipelineDetailPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const jobId = searchParams.get("jobId");
+
   const [isReviewingMatches, setIsReviewingMatches] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [selectedCandidate, setSelectedCandidate] = useState<any>(null);
+  const [showJobModal, setShowJobModal] = useState(false);
+  const [isNavigatingToEdit, setIsNavigatingToEdit] = useState(false);
+  const [currentJob, setCurrentJob] = useState<any>(null);
+
+  // Saves current job as the creation draft and navigates to the edit workflow
+  const handleEditJob = useCallback(() => {
+    if (!currentJob) return;
+    saveDraft({
+      // Mark this draft as an edit of an existing job so it gets replaced on save
+      editingJobTitle: currentJob.title ?? "",
+      title: currentJob.title ?? "",
+      department_id: currentJob.department_id ?? null,
+      department_name: currentJob.department_name ?? "",
+      location: currentJob.location ?? null,
+      work_arrangement: currentJob.work_arrangement,
+      employment_type: currentJob.employment_type,
+      description: currentJob.description ?? "",
+      skill_ids: currentJob.skill_ids ?? [],
+      skill_names: currentJob.skill_names ?? [],
+      template_id: currentJob.template_id ?? null,
+      benefit_ids: currentJob.benefit_ids ?? [],
+      benefit_names: currentJob.benefit_names ?? [],
+      custom_perks: currentJob.custom_perks ?? [],
+      work_life_flexible_hours: currentJob.work_life_flexible_hours ?? false,
+      work_life_remote_first: currentJob.work_life_remote_first ?? false,
+      work_life_mental_health_days:
+        currentJob.work_life_mental_health_days ?? false,
+      currency: currentJob.currency ?? "USD",
+      salary_min: currentJob.salary_min ?? null,
+      salary_max: currentJob.salary_max ?? null,
+      performance_bonus: currentJob.performance_bonus ?? false,
+      signing_bonus: currentJob.signing_bonus ?? false,
+      stock_options: currentJob.stock_options ?? false,
+      financial_add_ons: currentJob.financial_add_ons ?? [],
+      is_internal: currentJob.is_internal ?? true,
+      external_publisher_ids: currentJob.external_publisher_ids ?? [],
+      external_publisher_names: currentJob.external_publisher_names ?? [],
+      hiring_manager_ids: currentJob.hiring_manager_ids ?? [],
+      hiring_manager_names: currentJob.hiring_manager_names ?? [],
+      save_as_template: currentJob.save_as_template ?? false,
+      status: currentJob.status,
+      created_at: currentJob.created_at ?? new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+    setIsNavigatingToEdit(true);
+    router.push("/users/system/jobs/create/details");
+  }, [currentJob, router]);
 
   // Loader states for Email
   const [isSending, setIsSending] = useState(false);
@@ -41,13 +113,46 @@ function JobPipelineDetailPage() {
   const [aiMatches, setAiMatches] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const jobId = searchParams.get("jobId");
+  // Add Candidate Modal state
+  const [showAddCandidateModal, setShowAddCandidateModal] = useState(false);
+  const [allCandidatesList, setAllCandidatesList] = useState<any[]>([]);
+  const [candidateSearchQuery, setCandidateSearchQuery] = useState("");
+  const [candidateJobTitleFilter, setCandidateJobTitleFilter] = useState("");
+  const [appliedSearchQuery, setAppliedSearchQuery] = useState("");
+
+  const handleAddCandidateFromList = useCallback((c: any) => {
+    const newCand = {
+      id: c.id,
+      first_name: c.name.split(" ")[0] || "",
+      last_name: c.name.split(" ").slice(1).join(" ") || "",
+      email: c.email,
+      current_role: c.jobTitle || "Unknown Role",
+      current_company: "Unknown Company",
+      avatar_id: c.avatar || "avatar-1.jpg",
+      status: "Active",
+      skills: c.skills || [],
+      isUnicorn: false,
+      pipeline_status: "Active",
+      pipeline_stage: "Reviewing",
+      updated: "Just now",
+    };
+    setCandidates((prev: any) => [newCand, ...prev]);
+    setShowAddCandidateModal(false);
+  }, []);
 
   useEffect(() => {
     const loadData = async () => {
       setIsLoading(true);
+
+      // Fetch job details by jobId
+      if (jobId) {
+        const allJobs = await fetchActiveJobs();
+        const foundJob = allJobs.find((j: any) => j.id === jobId);
+        if (foundJob) {
+          setCurrentJob(foundJob);
+        }
+      }
+
       const cList = await fetchJobCandidates(jobId);
       const mList = await fetchAiMatchesForJob(jobId);
       setCandidates(cList);
@@ -116,8 +221,369 @@ function JobPipelineDetailPage() {
     }
   }, [candidateToDelete]);
 
+  // Resolved job display values
+  const jobTitle = currentJob?.title || "Loading...";
+  const jobLocation = currentJob?.location || "Remote";
+  const jobStatus = currentJob?.status || "Active";
+  const jobPosted = currentJob
+    ? timeAgo(currentJob.updated_at || currentJob.created_at)
+    : "—";
+  const workArrangement = currentJob?.work_arrangement || "";
+  const isActive =
+    jobStatus === "ACTIVE" || jobStatus === "Active" || !currentJob;
+
   return (
     <div className="min-h-screen rounded-3xl mesh-gradient no-scrollbar bg-[var(--background)]">
+      {/* --- JOB DETAILS MODAL --- */}
+      <AnimatePresence>
+        {showJobModal && currentJob && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowJobModal(false)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              className="relative w-full max-w-2xl glass-panel rounded-[2rem] shadow-2xl border-[var(--border-subtle)] overflow-hidden max-h-[90vh] flex flex-col"
+            >
+              {/* Modal Header */}
+              <div className="flex items-start justify-between p-8 pb-6 border-b border-[var(--border-subtle)]">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary border border-primary/20">
+                    <span className="material-symbols-outlined text-2xl">
+                      work
+                    </span>
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-[var(--text-main)] tracking-tight">
+                      {currentJob.title}
+                    </h3>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span
+                        className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${isActive ? "bg-primary/10 text-primary border-primary/20" : "bg-orange-500/10 text-orange-600 border-orange-500/20"}`}
+                      >
+                        <span
+                          className={`w-1.5 h-1.5 rounded-full ${isActive ? "bg-primary animate-pulse" : "bg-orange-500"}`}
+                        />
+                        {jobStatus}
+                      </span>
+                      <span className="text-[var(--text-muted)] text-xs font-medium">
+                        {jobId}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowJobModal(false)}
+                  className="p-2 rounded-xl hover:bg-[var(--surface)] text-[var(--text-muted)] hover:text-[var(--text-main)] transition-all"
+                >
+                  <span className="material-symbols-outlined text-xl">
+                    close
+                  </span>
+                </button>
+              </div>
+
+              {/* Modal Body — scrollable */}
+              <div className="overflow-y-auto flex-1 p-8 space-y-6">
+                {/* Quick info row */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                  {[
+                    {
+                      icon: "location_on",
+                      label: "Location",
+                      value: currentJob.location || "Not specified",
+                    },
+                    {
+                      icon: "hub",
+                      label: "Department",
+                      value: currentJob.department_name || "General",
+                    },
+                    {
+                      icon: "home_work",
+                      label: "Work Mode",
+                      value: (() => {
+                        const wm = currentJob.work_arrangement || "";
+                        if (wm === "REMOTE") return "Remote";
+                        if (wm === "HYBRID") return "Hybrid";
+                        if (wm === "ON_SITE") return "On-Site";
+                        return wm || "—";
+                      })(),
+                    },
+                    {
+                      icon: "schedule",
+                      label: "Employment",
+                      value: (() => {
+                        const et = currentJob.employment_type || "";
+                        if (et === "FULL_TIME") return "Full-Time";
+                        if (et === "PART_TIME") return "Part-Time";
+                        if (et === "CONTRACT") return "Contract";
+                        if (et === "INTERN") return "Internship";
+                        return et || "—";
+                      })(),
+                    },
+                    {
+                      icon: "payments",
+                      label: "Salary Range",
+                      value:
+                        currentJob.salary_min && currentJob.salary_max
+                          ? `${currentJob.currency || "USD"} ${(currentJob.salary_min / 1000).toFixed(0)}k – ${(currentJob.salary_max / 1000).toFixed(0)}k`
+                          : "Not disclosed",
+                    },
+                    {
+                      icon: "update",
+                      label: "Last Updated",
+                      value: jobPosted,
+                    },
+                  ].map((item) => (
+                    <div
+                      key={item.label}
+                      className="bg-[var(--input-bg)] rounded-2xl p-4 border border-[var(--border-subtle)]"
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="material-symbols-outlined text-base text-primary/70">
+                          {item.icon}
+                        </span>
+                        <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wide">
+                          {item.label}
+                        </p>
+                      </div>
+                      <p className="text-sm font-semibold text-[var(--text-main)] mt-0.5">
+                        {item.value}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Description */}
+                {currentJob.description && (
+                  <div>
+                    <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest mb-3">
+                      Job Description
+                    </p>
+                    {/* Detect HTML content vs plain text */}
+                    {/<[a-z][\s\S]*>/i.test(currentJob.description) ? (
+                      <>
+                        <style>{`
+                          .job-desc-html { color: var(--text-muted); font-size: 0.875rem; line-height: 1.75; }
+                          .job-desc-html b, .job-desc-html strong { color: var(--text-main); font-weight: 700; }
+                          .job-desc-html i, .job-desc-html em { font-style: italic; }
+                          .job-desc-html u { text-decoration: underline; text-underline-offset: 2px; }
+                          .job-desc-html ul { list-style: disc; padding-left: 1.25rem; margin: 0.5rem 0; }
+                          .job-desc-html ol { list-style: decimal; padding-left: 1.25rem; margin: 0.5rem 0; }
+                          .job-desc-html li { margin: 0.25rem 0; }
+                          .job-desc-html p { margin: 0.35rem 0; }
+                          .job-desc-html h1, .job-desc-html h2, .job-desc-html h3 { color: var(--text-main); font-weight: 700; margin: 0.75rem 0 0.25rem; }
+                          .job-desc-html a { color: var(--primary); text-decoration: underline; }
+                          .job-desc-html [style*="text-align: center"] { text-align: center; }
+                          .job-desc-html [style*="text-align: right"] { text-align: right; }
+                        `}</style>
+                        <div
+                          className="job-desc-html bg-[var(--input-bg)] rounded-2xl p-5 border border-[var(--border-subtle)]"
+                          dangerouslySetInnerHTML={{
+                            __html: currentJob.description,
+                          }}
+                        />
+                      </>
+                    ) : (
+                      <p className="text-sm text-[var(--text-muted)] leading-relaxed font-medium bg-[var(--input-bg)] rounded-2xl p-5 border border-[var(--border-subtle)]">
+                        {currentJob.description}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Skills */}
+                {currentJob.skill_names &&
+                  currentJob.skill_names.length > 0 && (
+                    <div>
+                      <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest mb-3">
+                        Required Skills
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {currentJob.skill_names.map(
+                          (skill: string, idx: number) => (
+                            <span
+                              key={idx}
+                              className="px-3 py-1.5 rounded-xl bg-primary/10 text-primary text-xs font-bold border border-primary/20"
+                            >
+                              {skill}
+                            </span>
+                          ),
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                {/* Benefits */}
+                {currentJob.benefit_names &&
+                  currentJob.benefit_names.length > 0 && (
+                    <div>
+                      <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest mb-3">
+                        Benefits
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {currentJob.benefit_names.map(
+                          (benefit: string, idx: number) => (
+                            <span
+                              key={idx}
+                              className="px-3 py-1.5 rounded-xl bg-emerald-500/10 text-emerald-600 text-xs font-bold border border-emerald-500/20"
+                            >
+                              {benefit}
+                            </span>
+                          ),
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                {/* Custom Perks */}
+                {currentJob.custom_perks &&
+                  currentJob.custom_perks.length > 0 && (
+                    <div>
+                      <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest mb-3">
+                        Perks
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {currentJob.custom_perks.map(
+                          (perk: string, idx: number) => (
+                            <span
+                              key={idx}
+                              className="px-3 py-1.5 rounded-xl bg-purple-500/10 text-purple-600 text-xs font-bold border border-purple-500/20"
+                            >
+                              {perk}
+                            </span>
+                          ),
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                {/* Hiring Managers */}
+                {currentJob.hiring_manager_names &&
+                  currentJob.hiring_manager_names.length > 0 && (
+                    <div>
+                      <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest mb-3">
+                        Hiring Managers
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {currentJob.hiring_manager_names.map(
+                          (name: string, idx: number) => (
+                            <span
+                              key={idx}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[var(--input-bg)] text-[var(--text-main)] text-xs font-semibold border border-[var(--border-subtle)]"
+                            >
+                              <span className="material-symbols-outlined text-sm text-primary/70">
+                                person
+                              </span>
+                              {name}
+                            </span>
+                          ),
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                {/* Publishers */}
+                {currentJob.external_publisher_names &&
+                  currentJob.external_publisher_names.length > 0 && (
+                    <div>
+                      <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest mb-3">
+                        Published On
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {currentJob.external_publisher_names.map(
+                          (pub: string, idx: number) => (
+                            <span
+                              key={idx}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[var(--input-bg)] text-[var(--text-main)] text-xs font-semibold border border-[var(--border-subtle)]"
+                            >
+                              <span className="material-symbols-outlined text-sm text-primary/70">
+                                public
+                              </span>
+                              {pub}
+                            </span>
+                          ),
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                {/* Compensation flags */}
+                <div>
+                  <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest mb-3">
+                    Compensation Extras
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {currentJob.performance_bonus && (
+                      <span className="px-3 py-1.5 rounded-xl bg-amber-500/10 text-amber-600 text-xs font-bold border border-amber-500/20">
+                        Performance Bonus
+                      </span>
+                    )}
+                    {currentJob.signing_bonus && (
+                      <span className="px-3 py-1.5 rounded-xl bg-amber-500/10 text-amber-600 text-xs font-bold border border-amber-500/20">
+                        Signing Bonus
+                      </span>
+                    )}
+                    {currentJob.stock_options && (
+                      <span className="px-3 py-1.5 rounded-xl bg-amber-500/10 text-amber-600 text-xs font-bold border border-amber-500/20">
+                        Stock Options
+                      </span>
+                    )}
+                    {currentJob.financial_add_ons?.map(
+                      (addon: string, idx: number) => (
+                        <span
+                          key={idx}
+                          className="px-3 py-1.5 rounded-xl bg-amber-500/10 text-amber-600 text-xs font-bold border border-amber-500/20"
+                        >
+                          {addon}
+                        </span>
+                      ),
+                    )}
+                    {!currentJob.performance_bonus &&
+                      !currentJob.signing_bonus &&
+                      !currentJob.stock_options &&
+                      (!currentJob.financial_add_ons ||
+                        currentJob.financial_add_ons.length === 0) && (
+                        <span className="text-xs text-[var(--text-muted)] italic">
+                          No extras specified
+                        </span>
+                      )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="flex gap-3 p-6 pt-4 border-t border-[var(--border-subtle)]">
+                <button
+                  onClick={() => setShowJobModal(false)}
+                  className="flex-1 py-3 text-sm font-bold text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors"
+                >
+                  Close
+                </button>
+                <button
+                  onClick={() => {
+                    setShowJobModal(false);
+                    handleEditJob();
+                  }}
+                  disabled={!currentJob}
+                  className="flex-[2] active-tab-gradient py-3 rounded-xl text-white font-bold text-sm shadow-glow transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  <span className="material-symbols-outlined text-lg">
+                    edit_note
+                  </span>
+                  Edit Job
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* --- EMAIL MODAL --- */}
       <AnimatePresence>
         {showEmailModal && (
@@ -332,6 +798,178 @@ function JobPipelineDetailPage() {
         )}
       </AnimatePresence>
 
+      {/* --- ADD CANDIDATE MODAL --- */}
+      <AnimatePresence>
+        {showAddCandidateModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowAddCandidateModal(false)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              className="relative w-full max-w-3xl glass-panel rounded-[2rem] shadow-2xl border-[var(--border-subtle)] overflow-hidden max-h-[85vh] flex flex-col bg-[var(--surface)]"
+            >
+              <div className="flex justify-between items-center p-6 border-b border-[var(--border-subtle)] bg-[var(--surface)] z-10">
+                <h3 className="text-xl font-bold text-[var(--text-main)]">
+                  Add Candidate
+                </h3>
+                <button
+                  onClick={() => setShowAddCandidateModal(false)}
+                  className="p-2 rounded-xl hover:bg-[var(--input-bg)] text-[var(--text-muted)] transition-all"
+                >
+                  <span className="material-symbols-outlined">close</span>
+                </button>
+              </div>
+
+              <div className="p-6 border-b border-[var(--border-subtle)] bg-[var(--input-bg)] flex gap-4 flex-col sm:flex-row">
+                <div className="relative flex-1">
+                  <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]">
+                    search
+                  </span>
+                  <input
+                    type="text"
+                    value={candidateSearchQuery}
+                    onChange={(e) => setCandidateSearchQuery(e.target.value)}
+                    placeholder="Search by name..."
+                    className="w-full premium-input pl-10 pr-4 py-2.5 rounded-xl text-sm font-semibold"
+                  />
+                </div>
+                {/* <div className="relative flex-1">
+                  <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]">
+                    work
+                  </span>
+                  <input
+                    type="text"
+                    value={candidateJobTitleFilter}
+                    onChange={(e) => setCandidateJobTitleFilter(e.target.value)}
+                    placeholder="Filter by job title..."
+                    className="w-full premium-input pl-10 pr-4 py-2.5 rounded-xl text-sm font-semibold"
+                  />
+                </div> */}
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-6 space-y-3">
+                {allCandidatesList
+                  .filter((c: any) => {
+                    const nameMatch = c.name
+                      ?.toLowerCase()
+                      .includes(candidateSearchQuery.toLowerCase());
+                    const jobMatch = c.jobTitle
+                      ?.toLowerCase()
+                      .includes(candidateJobTitleFilter.toLowerCase());
+                    return nameMatch && jobMatch;
+                  })
+                  .map((c: any) => (
+                    <div
+                      key={c.id}
+                      className="flex items-center justify-between p-4 rounded-xl border border-[var(--border-subtle)] hover:border-primary/50 hover:bg-[var(--input-bg)] transition-all group"
+                    >
+                      <div className="flex items-center gap-4">
+                        <Image
+                          src={`${c.avatar || "avatar-1.jpg"}`}
+                          alt={c.name}
+                          width={48}
+                          height={48}
+                          className="w-12 h-12 rounded-xl object-cover"
+                        />
+                        <div>
+                          <h4 className="font-bold text-[var(--text-main)] group-hover:text-primary transition-colors">
+                            {c.name}
+                          </h4>
+                          <p className="text-xs text-[var(--text-muted)] font-medium">
+                            {c.id || "No title specified"} • {c.email}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleAddCandidateFromList(c)}
+                        className="px-4 py-2 rounded-lg bg-primary/10 text-primary text-xs font-bold hover:bg-primary hover:text-white transition-all shadow-sm"
+                      >
+                        Select
+                      </button>
+                    </div>
+                  ))}
+                {allCandidatesList.length === 0 && (
+                  <div className="text-center p-8 text-[var(--text-muted)]">
+                    No candidates found.
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* --- FULL PAGE LOADER --- */}
+      <AnimatePresence>
+        {isLoading && (
+          <motion.div
+            key="page-loader"
+            initial={{ opacity: 1 }}
+            exit={{
+              opacity: 0,
+              transition: { duration: 0.4, ease: "easeOut" },
+            }}
+            className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-[var(--background)]/90 backdrop-blur-md"
+          >
+            {/* Outer glow ring */}
+            <div className="relative flex items-center justify-center mb-8">
+              <div
+                className="absolute w-28 h-28 rounded-full bg-primary/10 animate-ping"
+                style={{ animationDuration: "1.8s" }}
+              />
+              <div className="absolute w-20 h-20 rounded-full bg-primary/15 blur-md" />
+              <div className="w-16 h-16 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
+              <div className="absolute w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
+                <span className="material-symbols-outlined text-primary text-base">
+                  work
+                </span>
+              </div>
+            </div>
+
+            <motion.h3
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.15 }}
+              className="text-[var(--text-main)] font-bold text-lg tracking-tight mb-2"
+            >
+              Loading Pipeline
+            </motion.h3>
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.25 }}
+              className="text-[var(--text-muted)] text-sm font-medium animate-pulse"
+            >
+              Fetching job & candidate data...
+            </motion.p>
+
+            {/* Animated dots */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.35 }}
+              className="flex gap-1.5 mt-5"
+            >
+              {[0, 1, 2].map((i) => (
+                <motion.div
+                  key={i}
+                  animate={{ scale: [1, 1.4, 1], opacity: [0.4, 1, 0.4] }}
+                  transition={{ duration: 1, repeat: Infinity, delay: i * 0.2 }}
+                  className="w-1.5 h-1.5 rounded-full bg-primary"
+                />
+              ))}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <main className="max-w-7xl mx-auto px-4 md:px-6 py-8">
         {/* Navigation */}
         <nav className="flex items-center gap-2 text-xs font-semibold text-[var(--text-muted)] mb-8">
@@ -344,7 +982,7 @@ function JobPipelineDetailPage() {
           <span className="material-symbols-outlined text-sm opacity-40">
             chevron_right
           </span>
-          <span className="text-primary">Candidate Pipeline</span>
+          <span className="text-primary">Job Details</span>
         </nav>
 
         {/* Title Section */}
@@ -352,31 +990,74 @@ function JobPipelineDetailPage() {
           <div>
             <div className="flex items-center gap-4 mb-2">
               <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-[var(--text-main)]">
-                Senior Blockchain Engineer
+                {isLoading ? (
+                  <span className="inline-block w-72 h-9 rounded-xl bg-[var(--surface)] animate-pulse" />
+                ) : (
+                  jobTitle
+                )}
               </h1>
-              <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 text-primary text-[11px] font-bold border border-primary/20">
-                <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
-                Active
+              <span
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold border ${isActive ? "bg-primary/10 text-primary border-primary/20" : "bg-orange-500/10 text-orange-600 border-orange-500/20"}`}
+              >
+                <span
+                  className={`w-1.5 h-1.5 rounded-full ${isActive ? "bg-primary animate-pulse" : "bg-orange-500"}`}
+                />
+                {isLoading ? "Loading..." : jobStatus}
               </span>
             </div>
-            <p className="text-[var(--text-muted)] text-sm font-medium flex items-center gap-2">
-              <span className="material-symbols-outlined text-base text-primary/70">
-                location_on
+            <p className="text-[var(--text-muted)] text-sm font-medium flex items-center gap-4">
+              <span className="flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-base text-primary/70">
+                  location_on
+                </span>
+                {isLoading ? (
+                  <span className="inline-block w-36 h-4 rounded bg-[var(--surface)] animate-pulse" />
+                ) : (
+                  jobLocation
+                )}
               </span>
-              Remote, Global • Published 12 days ago
+              {workArrangement && (
+                <span className="flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-base text-primary/70">
+                    home_work
+                  </span>
+                  {workArrangement === "REMOTE"
+                    ? "Remote"
+                    : workArrangement === "HYBRID"
+                      ? "Hybrid"
+                      : workArrangement === "ON_SITE"
+                        ? "On-Site"
+                        : workArrangement}
+                </span>
+              )}
+              <span className="flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-base text-primary/70">
+                  schedule
+                </span>
+                Updated {jobPosted}
+              </span>
             </p>
           </div>
           <div className="flex items-center gap-3">
             <button
-              onClick={() => router.push("/users/system/jobs/create/details")}
-              className="px-5 py-2.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface)] text-[var(--text-main)] font-semibold text-sm hover:border-primary/50 transition-all flex items-center gap-2 shadow-sm"
+              onClick={handleEditJob}
+              disabled={!currentJob || isNavigatingToEdit}
+              className="px-5 py-2.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface)] text-[var(--text-main)] font-semibold text-sm hover:border-primary/50 transition-all flex items-center gap-2 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <span className="material-symbols-outlined text-xl opacity-70">
-                edit_note
-              </span>
-              Edit Job
+              {isNavigatingToEdit ? (
+                <span className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+              ) : (
+                <span className="material-symbols-outlined text-xl opacity-70">
+                  edit_note
+                </span>
+              )}
+              {isNavigatingToEdit ? "Loading..." : "Edit Job"}
             </button>
-            <button className="p-2.5 rounded-xl active-tab-gradient text-white shadow-glow">
+            <button
+              onClick={() => setShowJobModal(true)}
+              className="p-2.5 rounded-xl active-tab-gradient text-white shadow-glow hover:scale-105 transition-all"
+              title="View Job Details"
+            >
               <span className="material-symbols-outlined text-xl">
                 visibility
               </span>
@@ -499,7 +1180,7 @@ function JobPipelineDetailPage() {
                           </p>
                         </div>
                         <p className="text-xs text-[var(--text-muted)] leading-relaxed italic opacity-80">
-                          "{c?.bio}"
+                          &quot;{c?.bio}&quot;
                         </p>
                       </div>
                       <button
@@ -521,7 +1202,7 @@ function JobPipelineDetailPage() {
         {/* Filters and Main List */}
         <div className="flex flex-col md:flex-row items-center justify-between mb-8 gap-4">
           <h2 className="text-xl font-bold text-[var(--text-main)] tracking-tight">
-            Candidate Pipeline
+            All Applied Candidates
           </h2>
           <div className="flex flex-col md:flex-row items-center gap-3 w-full md:w-auto">
             <div className="flex items-center gap-3">
@@ -533,24 +1214,36 @@ function JobPipelineDetailPage() {
                   className="premium-input pl-10 pr-4 py-2.5 rounded-xl text-[var(--text-main)] font-semibold text-sm w-full md:w-64"
                   placeholder="Find a candidate..."
                   type="text"
+                  value={appliedSearchQuery}
+                  onChange={(e) => setAppliedSearchQuery(e.target.value)}
                 />
               </div>
-              <button className="flex items-center gap-2 px-4 py-2.5 bg-[var(--surface)] border border-[var(--border-subtle)] rounded-xl text-xs font-bold text-[var(--text-muted)] hover:text-primary transition-all shadow-sm">
-                <span className="material-symbols-outlined text-lg">
-                  filter_list
-                </span>
-                Refine
-              </button>
+              {appliedSearchQuery && (
+                <button
+                  onClick={() => setAppliedSearchQuery("")}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-[var(--surface)] border border-[var(--border-subtle)] rounded-xl text-xs font-bold text-[var(--text-muted)] hover:text-primary transition-all shadow-sm"
+                >
+                  <span className="material-symbols-outlined text-lg">
+                    close
+                  </span>
+                  Reset All
+                </button>
+              )}
             </div>
 
             <button
-              onClick={() => router.push("/users/system/candidates")}
+              onClick={() => {
+                setAllCandidatesList(getAllCandidates());
+                setCandidateSearchQuery("");
+                setCandidateJobTitleFilter("");
+                setShowAddCandidateModal(true);
+              }}
               className="w-full sm:w-auto active-tab-gradient text-white font-semibold px-6 py-3.5 rounded-2xl flex items-center justify-center gap-2 shadow-premium text-sm"
             >
               <span className="material-symbols-outlined text-xl">
-                add_circle
+                person_add
               </span>{" "}
-              Create Job
+              Add Candidate
             </button>
           </div>
         </div>
@@ -566,18 +1259,31 @@ function JobPipelineDetailPage() {
           ) : (
             <motion.div
               variants={containerVariants}
-              initial="hidden"
+              // initial="hidden"
               animate="visible"
               className="grid grid-cols-1 md:grid-cols-2 gap-6"
             >
-              {candidates?.map((c: any, i) => (
-                <CandidateCard
-                  key={c.id || i}
-                  candidate={c}
-                  onEmailClick={openEmailModal}
-                  onDeleteClick={openDeleteModal}
-                />
-              ))}
+              {candidates
+                ?.filter((c: any) => {
+                  const query = appliedSearchQuery.trim().toLowerCase();
+                  if (!query) return true;
+
+                  const searchableText =
+                    `${String(c.first_name || "")} ${String(c.last_name || "")} ${String(c.name || "")}`.toLowerCase();
+                  const tokens = query.split(/\s+/);
+
+                  return tokens.every((token) =>
+                    searchableText.includes(token),
+                  );
+                })
+                .map((c: any, i) => (
+                  <CandidateCard
+                    key={c.id || i}
+                    candidate={c}
+                    onEmailClick={openEmailModal}
+                    onDeleteClick={openDeleteModal}
+                  />
+                ))}
             </motion.div>
           )}
         </div>
@@ -612,12 +1318,13 @@ const CandidateCard = memo(
   ({ candidate, onEmailClick, onDeleteClick }: any) => {
     const router = useRouter();
 
+    const skills = candidate?.skills;
     const flattenedSkills = React.useMemo(() => {
-      if (!candidate?.skills) return [];
-      return candidate.skills
+      if (!skills) return [];
+      return skills
         .flatMap((s: any) => (typeof s === "string" ? [s] : s.skills || []))
         .slice(0, 6);
-    }, [candidate?.skills]);
+    }, [skills]);
 
     return (
       <motion.div
@@ -645,10 +1352,10 @@ const CandidateCard = memo(
               </p>
               <div className="flex gap-3 mt-3">
                 <span className="px-2.5 py-0.5 rounded-lg bg-primary/10 text-primary text-[10px] font-bold border border-primary/10">
-                  {candidate?.status}
+                  {candidate?.pipeline_stage}
                 </span>
                 <span className="text-[var(--text-muted)] text-[10px] font-medium self-center opacity-60">
-                  Updated {candidate?.updated}
+                  Updated {candidate?.updated_at}
                 </span>
               </div>
             </div>
@@ -675,12 +1382,12 @@ const CandidateCard = memo(
             onClick={() => {
               router.push(
                 candidate?.isUnicorn
-                  ? `/users/system/jobs/active_jobs/candidate_list/${candidate?.first_name?.toLowerCase()?.replace(" ", "-")}`
-                  : `/users/system/jobs/active_jobs/candidate_list/${candidate?.first_name?.toLowerCase()?.replace(" ", "-")}`,
+                  ? `/users/system/jobs/active_jobs/candidate_list/${candidate?.id}`
+                  : `/users/system/jobs/active_jobs/candidate_list/${candidate?.id}`,
               );
             }}
           >
-            {candidate?.isUnicorn ? "Manage Offer" : "Move Stage"}
+            View Pipeline
           </button>
           <button
             onClick={() => onEmailClick(candidate)}

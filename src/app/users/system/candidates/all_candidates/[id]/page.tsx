@@ -26,6 +26,7 @@ export default function CandidateDetailPage() {
   const { id } = useParams();
   const router = useRouter();
   const [candidate, setCandidate] = useState<any>(null);
+  const [candidateIndex, setCandidateIndex] = useState<number>(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -34,9 +35,10 @@ export default function CandidateDetailPage() {
       try {
         const storedCandidates = JSON.parse(rawData);
         if (Array.isArray(storedCandidates)) {
-          const found = storedCandidates.find((c: any) => c.id === id);
-          if (found) {
-            setCandidate(found);
+          const foundIndex = storedCandidates.findIndex((c: any) => c.id === id);
+          if (foundIndex !== -1) {
+            setCandidate(storedCandidates[foundIndex]);
+            setCandidateIndex(foundIndex);
           }
         }
       } catch (e) {
@@ -157,12 +159,19 @@ export default function CandidateDetailPage() {
             <div className="flex flex-col md:flex-row items-center md:items-start gap-8 relative z-10">
               <div className="size-32 md:size-40 rounded-4xl border-4 border-primary/20 p-1 bg-(--surface) shadow-glow relative">
                 <Image
-                  src={
-                    candidate.profilePhotoUrl ||
-                    candidate.step1?.profilePhotoUrl ||
-                    candidate.step1?.profilePhoto ||
-                    "/images/avatar-img/avatar-1.jpg"
-                  }
+                  src={(() => {
+                    const avatarImages = [
+                      "avt1.png",
+                      "avt2.png",
+                      "avt3.jpg",
+                      "avt4.jpg",
+                      "avt5.jpg",
+                      "avt6.png",
+                      "avt7.jpg",
+                      "avt8.png"
+                    ];
+                    return `/images/avatars/${avatarImages[candidateIndex % avatarImages.length]}`;
+                  })()}
                   alt={fullName}
                   width={160}
                   height={160}

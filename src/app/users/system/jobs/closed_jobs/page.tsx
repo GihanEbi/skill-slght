@@ -1,8 +1,10 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import { fetchClosedJobs, reopenClosedJob, deleteClosedJob } from "@/services/jobService";
+import { departments } from "@/constants/job_constants";
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -14,51 +16,68 @@ const itemVariants = {
   visible: { y: 0, opacity: 1, transition: { duration: 0.4 } },
 };
 
+const formatEnum = (val: string) => {
+  if (!val) return "N/A";
+  return val
+    .replace(/_/g, " ")
+    .replace(
+      /\w\S*/g,
+      (t) => t.charAt(0).toUpperCase() + t.substr(1).toLowerCase(),
+    );
+};
+
+const formatCurrency = (val: number, currency: string) =>
+  new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: currency || "USD",
+    maximumFractionDigits: 0,
+  }).format(val || 0);
+
 export default function ClosedJobsPage() {
   const router = useRouter();
 
   // Data State - Specific to Closed Jobs
-  const [closedJobs, setClosedJobs] = useState([
-    {
-      id: 1,
-      title: "Senior Product Designer",
-      cat: "external",
-      dept: "Design",
-      location: "San Francisco, CA",
-      dateClosed: "Oct 24, 2023",
-      timeToFill: "34 Days",
-      hiredCandidate: { name: "Sarah Jenkins", avatar: "avatar-1.jpg" },
-      stats: { applied: 142, interview: 12, offer: 1, total: 142 },
-    },
-    {
-      id: 2,
-      title: "Staff Rust Engineer",
-      cat: "external",
-      dept: "Engineering",
-      location: "Remote",
-      dateClosed: "Oct 15, 2023",
-      timeToFill: "45 Days",
-      hiredCandidate: { name: "David Miller", avatar: "avatar-2.jpg" },
-      stats: { applied: 89, interview: 8, offer: 1, total: 89 },
-    },
-    {
-      id: 3,
-      title: "Marketing Lead",
-      cat: "internal",
-      dept: "Marketing",
-      location: "London, UK",
-      dateClosed: "Sep 28, 2023",
-      timeToFill: "28 Days",
-      hiredCandidate: { name: "Michael Chen", avatar: "avatar-4.jpg" },
-      stats: { applied: 56, interview: 4, offer: 1, total: 56 },
-    },
-  ]);
+  const [closedJobs, setClosedJobs] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const loadJobs = async () => {
+      setIsLoading(true);
+      try {
+        const jobs = await fetchClosedJobs();
+        const mapped = jobs.map((j: any) => ({
+          ...j,
+          cat: j.is_internal ? "internal" : "external",
+          dept: j.department_name || j.department || "General",
+        }));
+        setClosedJobs(mapped);
+      } catch (error) {
+        console.error(error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadJobs();
+  }, []);
 
   // UI States
-  const [selectedDept, setSelectedDept] = useState("Engineering");
+  const [selectedDept, setSelectedDept] = useState("All Departments");
+  const [searchQuery, setSearchQuery] = useState("");
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [isReopening, setIsReopening] = useState(false);
   const [jobToReopen, setJobToReopen] = useState<any>(null);
+  const [selectedJob, setSelectedJob] = useState<any>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [jobToDelete, setJobToDelete] = useState<any>(null);
+
+  const filteredJobs = closedJobs.filter((job) => {
+    const matchesSearch = job.title
+      .toLowerCase()
+      .includes(searchQuery.toLowerCase());
+    const matchesDept =
+      selectedDept === "All Departments" || job.dept === selectedDept;
+    return matchesSearch && matchesDept;
+  });
 
   // Selection Handlers
   const toggleSelect = (id: number) => {
@@ -68,50 +87,471 @@ export default function ClosedJobsPage() {
   };
 
   const selectAll = () => {
-    if (selectedIds.length === closedJobs.length) setSelectedIds([]);
-    else setSelectedIds(closedJobs.map((j) => j.id));
+    if (selectedIds.length === filteredJobs.length) setSelectedIds([]);
+    else setSelectedIds(filteredJobs.map((j) => j.id));
   };
 
   // Handlers
-  const handleBulkExport = () => {
-    alert(`Exporting archive for ${selectedIds.length} protocols...`);
-    setSelectedIds([]);
+  const handleBulkReopen = () => {
+    setJobToReopen("bulk");
   };
 
-  const handleReopen = async (job: any) => {
+  const handleBulkDelete = () => {
+    setJobToDelete("bulk");
+  };
+
+  const handleReopen = (job: any) => {
     setJobToReopen(job);
+  };
+
+  const confirmReopen = async () => {
+    if (!jobToReopen) return;
     setIsReopening(true);
-    // Simulate protocol reactivation
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-    setClosedJobs((prev) => prev.filter((j) => j.id !== job.id));
+    
+    if (jobToReopen === "bulk") {
+      const titles = closedJobs.filter(j => selectedIds.includes(j.id)).map(j => j.title);
+      for (const title of titles) {
+        await reopenClosedJob(title);
+      }
+      setClosedJobs(prev => prev.filter(j => !titles.includes(j.title)));
+    } else {
+      await reopenClosedJob(jobToReopen.title);
+      setClosedJobs((prev) => prev.filter((j) => j.title !== jobToReopen.title));
+    }
+
     setIsReopening(false);
     setJobToReopen(null);
+    setSelectedIds([]);
+    router.push("/users/system/jobs/active_jobs");
+  };
+
+  const handleDelete = (job: any) => {
+    setJobToDelete(job);
+  };
+
+  const confirmDelete = async () => {
+    if (!jobToDelete) return;
+    setIsDeleting(true);
+
+    if (jobToDelete === "bulk") {
+      const titles = closedJobs.filter(j => selectedIds.includes(j.id)).map(j => j.title);
+      for (const title of titles) {
+        await deleteClosedJob(title);
+      }
+      setClosedJobs(prev => prev.filter(j => !titles.includes(j.title)));
+    } else {
+      await deleteClosedJob(jobToDelete.title);
+      setClosedJobs((prev) => prev.filter((j) => j.title !== jobToDelete.title));
+    }
+
+    setIsDeleting(false);
+    setJobToDelete(null);
     setSelectedIds([]);
   };
 
   return (
     <div className="min-h-screen flex flex-col rounded-3xl mesh-gradient no-scrollbar bg-[var(--background)] pb-32">
-      {/* --- REOPEN LOADER OVERLAY --- */}
+      {/* --- REOPEN CONFIRMATION POPUP --- */}
       <AnimatePresence>
-        {isReopening && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[500] flex items-center justify-center bg-[var(--background)]/60 backdrop-blur-md"
-          >
-            <div className="flex flex-col items-center gap-6">
-              <div className="w-20 h-20 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
-              <div className="text-center">
-                <h3 className="text-[var(--text-main)] font-bold text-lg">
-                  Reactivating Protocol
-                </h3>
-                <p className="text-[var(--text-muted)] text-sm mt-1">
-                  Restoring {jobToReopen?.title} to active state...
-                </p>
+        {jobToReopen && (
+          <div className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex: 9999 }}>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => !isReopening && setJobToReopen(null)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-md"
+            />
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              className="relative w-full max-w-md glass-panel rounded-[2rem] p-8 shadow-2xl border border-[var(--border-subtle)] overflow-hidden bg-[var(--background)]"
+            >
+              <AnimatePresence>
+                {isReopening && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="absolute inset-0 z-50 bg-[var(--surface)]/80 backdrop-blur-sm flex flex-col items-center justify-center text-center p-6"
+                  >
+                    <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin mb-4" />
+                    <h3 className="text-[var(--text-main)] font-bold">
+                      Reactivating Protocol
+                    </h3>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              <h2 className="text-xl font-bold text-[var(--text-main)] mb-2 tracking-tight">
+                Reopen Job
+              </h2>
+              <p className="text-sm text-[var(--text-muted)] mb-6">
+                Are you sure you want to reopen {jobToReopen === "bulk" ? `${selectedIds.length} selected jobs` : `"${jobToReopen.title}"`}? It will be moved back to the Active Jobs list.
+              </p>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setJobToReopen(null)}
+                  className="flex-1 py-3 rounded-xl border border-[var(--border-subtle)] text-[var(--text-muted)] font-bold text-sm bg-[var(--surface)] hover:bg-[var(--input-bg)] transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmReopen}
+                  className="flex-1 py-3 rounded-xl bg-primary text-white font-bold text-sm shadow-glow shadow-primary/30 hover:shadow-primary/50 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                >
+                  Confirm Reopen
+                </button>
               </div>
-            </div>
-          </motion.div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* --- DELETE CONFIRMATION POPUP --- */}
+      <AnimatePresence>
+        {jobToDelete && (
+          <div className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex: 9999 }}>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => !isDeleting && setJobToDelete(null)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-md"
+            />
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              className="relative w-full max-w-md glass-panel rounded-[2rem] p-8 shadow-2xl border border-[var(--border-subtle)] overflow-hidden bg-[var(--background)]"
+            >
+              <AnimatePresence>
+                {isDeleting && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="absolute inset-0 z-50 bg-[var(--surface)]/80 backdrop-blur-sm flex flex-col items-center justify-center text-center p-6"
+                  >
+                    <div className="w-12 h-12 border-4 border-red-500/20 border-t-red-500 rounded-full animate-spin mb-4" />
+                    <h3 className="text-[var(--text-main)] font-bold">
+                      Deleting Record
+                    </h3>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              <div className="w-12 h-12 bg-red-500/10 rounded-full flex items-center justify-center mb-4">
+                <span className="material-symbols-outlined text-red-500 text-2xl">
+                  delete_forever
+                </span>
+              </div>
+              <h2 className="text-xl font-bold text-[var(--text-main)] mb-2 tracking-tight">
+                Delete Permanently
+              </h2>
+              <p className="text-sm text-[var(--text-muted)] mb-6">
+                Are you sure you want to permanently delete {jobToDelete === "bulk" ? `${selectedIds.length} selected jobs` : `"${jobToDelete.title}"`}? This action cannot be undone.
+              </p>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setJobToDelete(null)}
+                  className="flex-1 py-3 rounded-xl border border-[var(--border-subtle)] text-[var(--text-muted)] font-bold text-sm bg-[var(--surface)] hover:bg-[var(--input-bg)] transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDelete}
+                  className="flex-1 py-3 rounded-xl bg-red-500 text-white font-bold text-sm hover:bg-red-600 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                >
+                  Delete
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* --- COMPREHENSIVE DATA MODAL --- */}
+      <AnimatePresence>
+        {selectedJob && (
+          <div className="fixed inset-0 flex items-center justify-center p-4 md:p-8" style={{ zIndex: 9999 }}>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setSelectedJob(null)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-md"
+            />
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              className="relative w-full max-w-4xl h-[90vh] glass-panel rounded-[2rem] shadow-2xl border border-[var(--border-subtle)] flex flex-col overflow-hidden bg-[var(--background)]"
+            >
+              {/* Modal Header */}
+              <div className="px-8 py-6 border-b border-[var(--border-subtle)] flex justify-between items-center bg-[var(--surface)]/50 shrink-0">
+                <div>
+                  <div className="flex items-center gap-3 mb-1">
+                    <h2 className="text-2xl font-bold text-[var(--text-main)] tracking-tight">
+                      Closed Job Details
+                    </h2>
+                  </div>
+                  <p className="text-xs text-[var(--text-muted)] font-medium">
+                    Closed on: {selectedJob.dateClosed}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setSelectedJob(null)}
+                  className="p-2 bg-[var(--input-bg)] border border-[var(--border-subtle)] rounded-xl text-[var(--text-muted)] hover:text-red-500 hover:border-red-500/50 transition-colors"
+                >
+                  <span className="material-symbols-outlined">close</span>
+                </button>
+              </div>
+
+              {/* Modal Scrollable Body */}
+              <div className="flex-1 overflow-y-auto p-6 md:p-8 custom-scrollbar space-y-10">
+                {/* STEP 1: Details */}
+                <section>
+                  <SectionTitle icon="description" title="Core Details" />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-[var(--surface)] p-6 rounded-2xl border border-[var(--border-subtle)]">
+                    <DetailField
+                      label="Job Title"
+                      value={selectedJob.title}
+                      isHighlight
+                    />
+                    <DetailField label="Department" value={selectedJob.dept} />
+                    <DetailField
+                      label="Location"
+                      value={selectedJob.location || "N/A"}
+                    />
+                    <DetailField
+                      label="Work Arrangement"
+                      value={formatEnum(selectedJob.work_arrangement)}
+                    />
+                    <DetailField
+                      label="Employment Type"
+                      value={formatEnum(selectedJob.employment_type)}
+                    />
+                    <DetailField
+                      label="Template Used"
+                      value={selectedJob.template_id || "None (Custom)"}
+                    />
+
+                    <div className="md:col-span-2 mt-2">
+                      <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest block mb-2">
+                        Required Skills
+                      </label>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedJob.skill_names?.map((skill: any) => (
+                          <span
+                            key={skill}
+                            className="px-3 py-1.5 rounded-lg bg-primary/10 text-primary text-xs font-bold border border-primary/20"
+                          >
+                            {skill}
+                          </span>
+                        ))}
+                        {(!selectedJob.skill_names ||
+                          selectedJob.skill_names.length === 0) && (
+                          <span className="text-sm text-[var(--text-muted)] italic">
+                            No skills specified
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="md:col-span-2 mt-2">
+                      <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest block mb-2">
+                        Job Description
+                      </label>
+                      <p className="text-sm text-[var(--text-main)] leading-relaxed bg-[var(--input-bg)] p-4 rounded-xl border border-[var(--border-subtle)]">
+                        {selectedJob.description || "No description provided."}
+                      </p>
+                    </div>
+                  </div>
+                </section>
+
+                {/* STEP 2: Benefits */}
+                <section>
+                  <SectionTitle
+                    icon="card_giftcard"
+                    title="Benefits & Work-Life"
+                  />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-[var(--surface)] p-6 rounded-2xl border border-[var(--border-subtle)]">
+                    <div>
+                      <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest block mb-3">
+                        Standard Benefits
+                      </label>
+                      <ul className="space-y-2">
+                        {selectedJob.benefit_names?.map((ben: any) => (
+                          <li
+                            key={ben}
+                            className="flex items-center gap-2 text-sm font-semibold text-[var(--text-main)]"
+                          >
+                            <span className="material-symbols-outlined text-primary text-lg">
+                              check_circle
+                            </span>{" "}
+                            {ben}
+                          </li>
+                        ))}
+                        {(!selectedJob.benefit_names ||
+                          selectedJob.benefit_names.length === 0) && (
+                          <li className="text-sm text-[var(--text-muted)]">
+                            None selected
+                          </li>
+                        )}
+                      </ul>
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest block mb-3">
+                        Custom Perks
+                      </label>
+                      <ul className="space-y-2">
+                        {selectedJob.custom_perks?.map((perk: any) => (
+                          <li
+                            key={perk}
+                            className="flex items-center gap-2 text-sm font-semibold text-[var(--text-main)]"
+                          >
+                            <span className="material-symbols-outlined text-accent text-lg">
+                              star
+                            </span>{" "}
+                            {perk}
+                          </li>
+                        ))}
+                        {(!selectedJob.custom_perks ||
+                          selectedJob.custom_perks.length === 0) && (
+                          <li className="text-sm text-[var(--text-muted)]">
+                            None specified
+                          </li>
+                        )}
+                      </ul>
+                    </div>
+                    <div className="md:col-span-2 pt-4 border-t border-[var(--border-subtle)] flex gap-4 flex-wrap">
+                      <BooleanTag
+                        label="Flexible Hours"
+                        active={selectedJob.work_life_flexible_hours}
+                      />
+                      <BooleanTag
+                        label="Remote First"
+                        active={selectedJob.work_life_remote_first}
+                      />
+                      <BooleanTag
+                        label="Mental Health Days"
+                        active={selectedJob.work_life_mental_health_days}
+                      />
+                    </div>
+                  </div>
+                </section>
+
+                {/* STEP 3: Compensation */}
+                <section>
+                  <SectionTitle icon="payments" title="Compensation" />
+                  <div className="bg-[var(--surface)] p-6 rounded-2xl border border-[var(--border-subtle)]">
+                    <div className="flex items-center gap-8 mb-6">
+                      <div>
+                        <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest block mb-1">
+                          Base Salary Range
+                        </label>
+                        <p className="text-2xl font-bold text-primary tracking-tight">
+                          {selectedJob.salary_min
+                            ? formatCurrency(
+                                selectedJob.salary_min,
+                                selectedJob.currency,
+                              )
+                            : "TBD"}{" "}
+                          —{" "}
+                          {selectedJob.salary_max
+                            ? formatCurrency(
+                                selectedJob.salary_max,
+                                selectedJob.currency,
+                              )
+                            : "TBD"}
+                        </p>
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest block mb-1">
+                          Currency
+                        </label>
+                        <p className="text-2xl font-bold text-[var(--text-main)]">
+                          {selectedJob.currency || "USD"}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-4 mb-6">
+                      <BooleanTag
+                        label="Performance Bonus"
+                        active={selectedJob.performance_bonus}
+                      />
+                      <BooleanTag
+                        label="Signing Bonus"
+                        active={selectedJob.signing_bonus}
+                      />
+                      <BooleanTag
+                        label="Stock Options / Equity"
+                        active={selectedJob.stock_options}
+                      />
+                    </div>
+                    {selectedJob.financial_add_ons?.length > 0 && (
+                      <div className="pt-4 border-t border-[var(--border-subtle)]">
+                        <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest block mb-3">
+                          Financial Add-ons
+                        </label>
+                        <div className="flex flex-wrap gap-2">
+                          {selectedJob.financial_add_ons.map((addon: any) => (
+                            <span
+                              key={addon}
+                              className="px-3 py-1.5 rounded-lg bg-[var(--input-bg)] border border-[var(--border-subtle)] text-xs font-semibold text-[var(--text-main)]"
+                            >
+                              {addon}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </section>
+
+                {/* Stats Section */}
+                <section>
+                  <SectionTitle icon="query_stats" title="Hiring Performance" />
+                  <div className="bg-[var(--surface)] p-6 rounded-2xl border border-[var(--border-subtle)] flex items-center justify-around flex-wrap gap-4">
+                    <div className="text-center">
+                      <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest block mb-1">
+                        Applied
+                      </label>
+                      <span className="text-2xl font-bold text-[var(--text-main)]">
+                        {selectedJob.stats?.applied || 0}
+                      </span>
+                    </div>
+                    <div className="text-center">
+                      <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest block mb-1">
+                        Screening
+                      </label>
+                      <span className="text-2xl font-bold text-[var(--text-main)]">
+                        {selectedJob.stats?.screening || 0}
+                      </span>
+                    </div>
+                    <div className="text-center">
+                      <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest block mb-1">
+                        Interview
+                      </label>
+                      <span className="text-2xl font-bold text-[var(--text-main)]">
+                        {selectedJob.stats?.interview || 0}
+                      </span>
+                    </div>
+                    <div className="text-center">
+                      <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest block mb-1">
+                        Offer
+                      </label>
+                      <span className="text-2xl font-bold text-primary">
+                        {selectedJob.stats?.offer || 0}
+                      </span>
+                    </div>
+                  </div>
+                </section>
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
 
@@ -130,24 +570,33 @@ export default function ClosedJobsPage() {
                   {selectedIds.length}
                 </span>
                 <span className="text-sm font-bold text-[var(--text-main)]">
-                  Archive Selected
+                  Records Selected
                 </span>
               </div>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={handleBulkExport}
+                  onClick={handleBulkReopen}
                   className="px-4 py-2 text-xs font-bold text-[var(--text-main)] hover:bg-[var(--surface)] rounded-xl border border-[var(--border-subtle)] flex items-center gap-2 transition-all"
                 >
                   <span className="material-symbols-outlined text-sm">
-                    download
+                    restore
                   </span>{" "}
-                  Export
+                  Reopen
+                </button>
+                <button
+                  onClick={handleBulkDelete}
+                  className="px-4 py-2 text-xs font-bold text-red-500 hover:bg-red-500/10 rounded-xl border border-red-500/20 flex items-center gap-2 transition-all"
+                >
+                  <span className="material-symbols-outlined text-sm">
+                    delete_forever
+                  </span>{" "}
+                  Delete
                 </button>
                 <button
                   onClick={() => setSelectedIds([])}
-                  className="p-2 text-[var(--text-muted)] hover:text-red-500 transition-all"
+                  className="p-2 text-[var(--text-muted)] hover:text-[var(--text-main)] transition-all flex items-center justify-center"
                 >
-                  <span className="material-symbols-outlined">close</span>
+                  <span className="material-symbols-outlined text-sm">close</span>
                 </button>
               </div>
             </div>
@@ -166,7 +615,7 @@ export default function ClosedJobsPage() {
             <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-[var(--text-main)]">
               Closed Jobs
               <span className="text-[var(--text-muted)] ml-3 text-lg font-normal opacity-50">
-                {closedJobs.length} records
+                {filteredJobs.length} records
               </span>
             </h1>
           </div>
@@ -181,13 +630,14 @@ export default function ClosedJobsPage() {
                 className="ml-4 flex items-center gap-2 group transition-all"
               >
                 <div
-                  className={`w-5 h-5 rounded border flex items-center justify-center transition-all ${selectedIds.length === closedJobs.length ? "bg-primary border-primary text-white" : "border-[var(--border-subtle)] bg-[var(--input-bg)] group-hover:border-primary/50"}`}
+                  className={`w-5 h-5 rounded border flex items-center justify-center transition-all ${selectedIds.length > 0 && selectedIds.length === filteredJobs.length ? "bg-primary border-primary text-white" : "border-[var(--border-subtle)] bg-[var(--input-bg)] group-hover:border-primary/50"}`}
                 >
-                  {selectedIds.length === closedJobs.length && (
-                    <span className="material-symbols-outlined text-[14px] font-bold">
-                      check
-                    </span>
-                  )}
+                  {selectedIds.length > 0 &&
+                    selectedIds.length === filteredJobs.length && (
+                      <span className="material-symbols-outlined text-[14px] font-bold">
+                        check
+                      </span>
+                    )}
                 </div>
                 <span className="text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-tight">
                   Select All
@@ -198,6 +648,8 @@ export default function ClosedJobsPage() {
                   search
                 </span>
                 <input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full bg-transparent border-none rounded-2xl pl-10 pr-6 py-3.5 text-sm text-[var(--text-main)] focus:ring-0 placeholder:text-[var(--text-muted)] font-medium"
                   placeholder="Search job..."
                   type="text"
@@ -209,9 +661,15 @@ export default function ClosedJobsPage() {
                 label="Department"
                 selected={selectedDept}
                 setSelected={setSelectedDept}
-                options={["Engineering", "Design", "Marketing", "Security"]}
+                options={["All Departments", ...departments]}
               />
-              <button className="bg-[var(--input-bg)] hover:bg-primary/10 text-[var(--text-main)] rounded-xl border border-[var(--border-subtle)] flex items-center gap-2 px-4 py-2 text-sm font-semibold h-[46px]">
+              <button
+                onClick={() => {
+                  setSearchQuery("");
+                  setSelectedDept("All Departments");
+                }}
+                className="bg-[var(--input-bg)] hover:bg-primary/10 text-[var(--text-main)] rounded-xl border border-[var(--border-subtle)] flex items-center gap-2 px-4 py-2 text-sm font-semibold h-[46px]"
+              >
                 <span className="material-symbols-outlined text-lg opacity-60">
                   tune
                 </span>{" "}
@@ -224,20 +682,49 @@ export default function ClosedJobsPage() {
         {/* Closed Job Cards */}
         <motion.div
           variants={containerVariants}
-          initial="hidden"
+          // initial="hidden"
           animate="visible"
           className="grid grid-cols-1 gap-5"
         >
           <AnimatePresence mode="popLayout">
-            {closedJobs.map((job) => (
-              <ClosedJobCard
-                key={job.id}
-                job={job}
-                isSelected={selectedIds.includes(job.id)}
-                onSelect={() => toggleSelect(job.id)}
-                onReopen={() => handleReopen(job)}
-              />
-            ))}
+            {isLoading ? (
+              <div className="flex flex-col items-center justify-center py-20 min-h-[400px]">
+                <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin mb-4" />
+                <p className="text-[var(--text-muted)] font-bold">
+                  Loading closed protocols...
+                </p>
+              </div>
+            ) : filteredJobs && filteredJobs.length > 0 ? (
+              filteredJobs.map((job) => (
+                  <ClosedJobCard
+                    key={job.id}
+                    job={job}
+                    isSelected={selectedIds.includes(job.id)}
+                    onSelect={() => toggleSelect(job.id)}
+                    onReopen={() => handleReopen(job)}
+                    onViewDetails={() => setSelectedJob(job)}
+                    onDelete={() => handleDelete(job)}
+                  />
+              ))
+            ) : (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="glass-panel rounded-[2.5rem] p-12 md:p-20 text-center border-dashed border-2 border-[var(--border-subtle)] bg-white/5"
+              >
+                <div className="w-24 h-24 bg-primary/10 rounded-3xl flex items-center justify-center mx-auto mb-8 border border-primary/20 shadow-glow">
+                  <span className="material-symbols-outlined text-primary text-5xl">
+                    search_off
+                  </span>
+                </div>
+                <h2 className="text-2xl font-bold text-[var(--text-main)] mb-3 tracking-tight">
+                  No Closed Jobs Found
+                </h2>
+                <p className="text-sm text-[var(--text-muted)] max-w-sm mx-auto mb-10 leading-relaxed font-medium">
+                  Try clearing your filters or refreshing the page.
+                </p>
+              </motion.div>
+            )}
           </AnimatePresence>
         </motion.div>
 
@@ -253,7 +740,14 @@ export default function ClosedJobsPage() {
   );
 }
 
-function ClosedJobCard({ job, onReopen, isSelected, onSelect }: any) {
+function ClosedJobCard({
+  job,
+  onReopen,
+  isSelected,
+  onSelect,
+  onViewDetails,
+  onDelete,
+}: any) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   return (
@@ -357,10 +851,23 @@ function ClosedJobCard({ job, onReopen, isSelected, onSelect }: any) {
                   exit={{ opacity: 0, scale: 0.95, y: 10 }}
                   className="absolute right-0 mt-2 w-52 bg-[var(--surface)] rounded-2xl border border-[var(--glass-border)] shadow-xl overflow-hidden p-1.5 z-[200]"
                 >
-                  <MenuButton icon="visibility" label="View Job Details" />
-                  <MenuButton icon="download" label="Download Report" />
-                  <div className="h-px bg-[var(--border-subtle)] my-1.5 mx-2" />
-                  <MenuButton icon="delete" label="Delete Permanent" isDanger />
+                  <MenuButton
+                    icon="visibility"
+                    label="View Job Details"
+                    onClick={() => {
+                      setIsMenuOpen(false);
+                      onViewDetails();
+                    }}
+                  />
+                  <MenuButton
+                    icon="delete"
+                    label="Delete Permanent"
+                    isDanger
+                    onClick={() => {
+                      setIsMenuOpen(false);
+                      onDelete();
+                    }}
+                  />
                 </motion.div>
                 <div
                   className="fixed inset-0 z-[100]"
@@ -458,5 +965,55 @@ function PaginationButton({ label, icon, active, disabled }: any) {
         <span className="text-sm font-bold">{label}</span>
       )}
     </button>
+  );
+}
+
+// Additional Shared Components
+function SectionTitle({ icon, title }: { icon: string; title: string }) {
+  return (
+    <div className="flex items-center gap-3 mb-4">
+      <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+        <span className="material-symbols-outlined text-[18px]">{icon}</span>
+      </div>
+      <h3 className="text-lg font-bold text-[var(--text-main)] tracking-tight">
+        {title}
+      </h3>
+    </div>
+  );
+}
+
+function DetailField({
+  label,
+  value,
+  isHighlight = false,
+}: {
+  label: string;
+  value: string;
+  isHighlight?: boolean;
+}) {
+  return (
+    <div>
+      <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest block mb-1">
+        {label}
+      </label>
+      <p
+        className={`text-sm font-semibold ${isHighlight ? "text-primary text-base" : "text-[var(--text-main)]"}`}
+      >
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function BooleanTag({ label, active }: { label: string; active: boolean }) {
+  return (
+    <div
+      className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-bold transition-colors ${active ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-500" : "bg-[var(--input-bg)] border-[var(--border-subtle)] text-[var(--text-muted)] opacity-60"}`}
+    >
+      <span className="material-symbols-outlined text-[16px]">
+        {active ? "check_circle" : "cancel"}
+      </span>
+      {label}
+    </div>
   );
 }
