@@ -40,8 +40,8 @@ export default function AllCandidatesPage() {
 
   // Dynamic Data Store
   const [candidates, setCandidates] =
-    useState<(Partial<AddCandidateFormData> & { id: string })[]>(
-      initialMockData,
+    useState<(Partial<AddCandidateFormData> & { id: string; originalIndex?: number })[]>(
+      initialMockData as any,
     );
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSkill, setSelectedSkill] = useState("All Skills");
@@ -54,11 +54,15 @@ export default function AllCandidatesPage() {
       try {
         const storedCandidates = JSON.parse(rawData);
         if (Array.isArray(storedCandidates)) {
-          const mappedCandidates = storedCandidates.map((item: any) => {
+          let needsSave = false;
+          const mappedCandidates = storedCandidates.map((item: any, index: number) => {
+            if (!item.id) {
+              item.id = `CAND-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+              needsSave = true;
+            }
             return {
-              id:
-                item.id ||
-                `CAND-${Math.random().toString(36).substr(2, 9).toUpperCase()}`,
+              id: item.id,
+              originalIndex: index,
               step1: {
                 firstName: item.step1?.firstName || item.firstName || "",
                 lastName: item.step1?.lastName || item.lastName || "",
@@ -85,7 +89,10 @@ export default function AllCandidatesPage() {
               },
             };
           });
-          setCandidates(mappedCandidates);
+          if (needsSave) {
+            localStorage.setItem("all-candidates", JSON.stringify(storedCandidates));
+          }
+          setCandidates(mappedCandidates.reverse());
         }
       } catch (e) {
         console.error("Storage Retrieval Error", e);
@@ -294,104 +301,121 @@ export default function AllCandidatesPage() {
                     </tr>
                   </thead>
                   <tbody className="">
-                    {filteredCandidates?.map((candidate) => (
-                      <motion.tr
-                        key={candidate.id}
-                        whileHover={{
-                          backgroundColor: "rgba(19, 236, 164, 0.02)",
-                        }}
-                        onClick={() =>
-                          router.push(
-                            `/users/system/candidates/all_candidates/${candidate.id.replace("#", "")}`,
-                          )
-                        }
-                        className="transition-colors group cursor-pointer"
-                      >
-                        <td className="px-8 py-6">
-                          <div className="flex items-center gap-4">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                toggleSelect(candidate.id);
-                              }}
-                              className={`w-5 h-5 rounded border transition-all flex items-center justify-center shrink-0 ${candidate.id && selectedIds.includes(candidate.id) ? "bg-primary border-primary text-white" : "border-(--border-subtle) bg-(--input-bg) group-hover:border-primary/50"}`}
-                            >
-                              {candidate.id &&
-                                selectedIds.includes(candidate.id) && (
-                                  <span className="material-symbols-outlined text-[14px] font-bold">
-                                    check
-                                  </span>
-                                )}
-                            </button>
-                            <div className="size-10 rounded-xl border border-primary/20 p-0.5 overflow-hidden bg-(--surface) shadow-sm">
-                              <Image
-                                src={"/images/avatar-img/avatar-1.jpg"}
-                                alt={`${candidate?.step1?.firstName} ${candidate?.step1?.lastName}`}
-                                width={40}
-                                height={40}
-                                className="rounded-lg object-cover w-9 h-9"
+                    {filteredCandidates?.map((candidate) => {
+                      const globalIndex = candidate.originalIndex !== undefined 
+                        ? candidate.originalIndex 
+                        : candidates.findIndex(c => c.id === candidate.id);
+                      const displayIndex = globalIndex !== -1 ? globalIndex : 0;
+                      const avatarImages = [
+                        "avt1.png",
+                        "avt2.png",
+                        "avt3.jpg",
+                        "avt4.jpg",
+                        "avt5.jpg",
+                        "avt6.png",
+                        "avt7.jpg",
+                        "avt8.png",
+                      ];
+                      const avatarSrc = `/images/avatars/${avatarImages[displayIndex % avatarImages.length]}`;
+                      return (
+                        <motion.tr
+                          key={candidate.id}
+                          whileHover={{
+                            backgroundColor: "rgba(19, 236, 164, 0.02)",
+                          }}
+                          onClick={() =>
+                            router.push(
+                              `/users/system/candidates/all_candidates/${candidate.id.replace("#", "")}`,
+                            )
+                          }
+                          className="transition-colors group cursor-pointer"
+                        >
+                          <td className="px-8 py-6">
+                            <div className="flex items-center gap-4">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleSelect(candidate.id);
+                                }}
+                                className={`w-5 h-5 rounded border transition-all flex items-center justify-center shrink-0 ${candidate.id && selectedIds.includes(candidate.id) ? "bg-primary border-primary text-white" : "border-(--border-subtle) bg-(--input-bg) group-hover:border-primary/50"}`}
+                              >
+                                {candidate.id &&
+                                  selectedIds.includes(candidate.id) && (
+                                    <span className="material-symbols-outlined text-[14px] font-bold">
+                                      check
+                                    </span>
+                                  )}
+                              </button>
+                              <div className="size-10 rounded-xl border border-primary/20 p-0.5 overflow-hidden bg-(--surface) shadow-sm">
+                                <Image
+                                  src={avatarSrc}
+                                  alt={`${candidate?.step1?.firstName} ${candidate?.step1?.lastName}`}
+                                  width={40}
+                                  height={40}
+                                  className="rounded-lg object-cover w-9 h-9"
+                                />
+                              </div>
+                              <div>
+                                <p className="font-bold text-(--text-main) group-hover:text-primary transition-colors">
+                                  {candidate?.step1?.firstName}
+                                </p>
+                                <p className="text-[10px] font-bold text-(--text-muted) uppercase tracking-widest">
+                                  {candidate.id}
+                                </p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-8 py-6">
+                            <p className="font-bold text-(--text-main) group-hover:text-primary transition-colors">
+                              {candidate?.step1?.lastName}
+                            </p>
+                          </td>
+                          <td className="px-8 py-6">
+                            <p className="text-xs font-bold text-(--text-main) group-hover:text-primary transition-colors text-center">
+                              {candidate?.step1?.email}
+                            </p>
+                          </td>
+                          <td className="px-8 py-6">
+                            <p className="text-xs font-bold text-(--text-main) text-center">
+                              {candidate?.step1?.phone || "—"}
+                            </p>
+                          </td>
+                          <td className="px-8 py-6">
+                            <p className="text-xs font-bold text-(--text-main) text-center">
+                              {candidate?.step1?.country}
+                            </p>
+                          </td>
+                          <td className="px-8 py-6">
+                            <div className="flex flex-col items-center gap-2">
+                              <StatusBadge status={candidate?.step2?.status} />
+                            </div>
+                          </td>
+                          <td className="px-8 py-6">
+                            <div className="flex items-center justify-center gap-2">
+                              <ActionIconButton
+                                icon="visibility"
+                                tooltip="View Profile"
+                                variant="primary"
+                                onClick={() =>
+                                  router.push(
+                                    `/users/system/candidates/all_candidates/${candidate.id.replace("#", "")}`,
+                                  )
+                                }
+                              />
+                              <ActionIconButton
+                                icon="edit"
+                                tooltip="Edit Candidate"
+                                onClick={() =>
+                                  router.push(
+                                    `/users/system/candidates/Add_candidate/basic_info?id=${candidate.id.replace("#", "")}`,
+                                  )
+                                }
                               />
                             </div>
-                            <div>
-                              <p className="font-bold text-(--text-main) group-hover:text-primary transition-colors">
-                                {candidate?.step1?.firstName}
-                              </p>
-                              <p className="text-[10px] font-bold text-(--text-muted) uppercase tracking-widest">
-                                {candidate.id}
-                              </p>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-8 py-6">
-                          <p className="font-bold text-(--text-main) group-hover:text-primary transition-colors">
-                            {candidate?.step1?.lastName}
-                          </p>
-                        </td>
-                        <td className="px-8 py-6">
-                          <p className="text-xs font-bold text-(--text-main) group-hover:text-primary transition-colors text-center">
-                            {candidate?.step1?.email}
-                          </p>
-                        </td>
-                        <td className="px-8 py-6">
-                          <p className="text-xs font-bold text-(--text-main) text-center">
-                            {candidate?.step1?.phone || "—"}
-                          </p>
-                        </td>
-                        <td className="px-8 py-6">
-                          <p className="text-xs font-bold text-(--text-main) text-center">
-                            {candidate?.step1?.country}
-                          </p>
-                        </td>
-                        <td className="px-8 py-6">
-                          <div className="flex flex-col items-center gap-2">
-                            <StatusBadge status={candidate?.step2?.status} />
-                          </div>
-                        </td>
-                        <td className="px-8 py-6">
-                          <div className="flex items-center justify-center gap-2">
-                            <ActionIconButton
-                              icon="visibility"
-                              tooltip="View Profile"
-                              variant="primary"
-                              onClick={() =>
-                                router.push(
-                                  `/users/system/candidates/all_candidates/${candidate.id.replace("#", "")}`,
-                                )
-                              }
-                            />
-                            <ActionIconButton
-                              icon="edit"
-                              tooltip="Edit Candidate"
-                              onClick={() =>
-                                router.push(
-                                  `/users/system/candidates/Add_candidate/basic_info?id=${candidate.id.replace("#", "")}`,
-                                )
-                              }
-                            />
-                          </div>
-                        </td>
-                      </motion.tr>
-                    ))}
+                          </td>
+                        </motion.tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -434,9 +458,7 @@ export default function AllCandidatesPage() {
           <div className="flex gap-2">
             <PaginationButton icon="chevron_left" disabled />
             <PaginationButton label="1" active />
-            <PaginationButton label="2" />
-            <PaginationButton label="3" />
-            <PaginationButton icon="chevron_right" />
+            <PaginationButton icon="chevron_right" disabled />
           </div>
         </footer>
       </main>
