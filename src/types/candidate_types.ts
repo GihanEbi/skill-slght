@@ -88,6 +88,9 @@ export interface Candidate {
   email: string;
   phone_no: string;
   country: string;
+  address?: string;
+  longitude?: string;
+  latitude?: string;
   city: string;
   status: CandidateStatus;
   candidate_source: CandidateSource;
