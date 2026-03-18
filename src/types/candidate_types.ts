@@ -88,6 +88,9 @@ export interface Candidate {
   email: string;
   phone_no: string;
   country: string;
+  address?: string;
+  longitude?: string;
+  latitude?: string;
   city: string;
   status: CandidateStatus;
   candidate_source: CandidateSource;
@@ -200,6 +203,9 @@ export interface AddCandidateFormData {
     whatsapp?: string;
     country: string;
     city?: string;
+    address?: string;
+    longitude?: string;
+    latitude?: string;
     timezone?: string;
     willingToRelocate?: boolean;
     linkedInUrl?: string;
